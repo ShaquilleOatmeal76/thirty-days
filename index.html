@@ -1083,8 +1083,8 @@ cv.addEventListener('mousemove', e => {
   cv.style.cursor = Object.values(cast).some(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 16 && y < sy + 3; }) ? 'pointer' : 'default';
 });
 window.addEventListener('resize', placeBubble);
-$('council').addEventListener('click', () => { $('council').hidden = true; bubbleWho = null; });
-$('council').title = 'Tap to close. Tap anyone in the village to hear from them.';
+document.getElementById('council').addEventListener('click', e => { e.currentTarget.hidden = true; bubbleWho = null; });
+document.getElementById('council').title = 'Tap to close. Tap anyone in the village to hear from them.';
 function startDiorama() { if (!reduceMotion) requestAnimationFrame(frame); }
 function drawDiorama() { buildScene(); if (reduceMotion) { paint(0); placeBubble(); } }
 
