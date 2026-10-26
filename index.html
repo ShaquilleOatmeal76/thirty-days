@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Thirty Days: a daily settlement game. One village, thirty days, one decision a day.">
+<style>
+:root { color-scheme: dark; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font: 14px system-ui, sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Thirty Days</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: the pixel diorama is the hero with its HUD; below it the day's work in two columns — what's coming and your orders on the left, today's Focus on the right. Single committed dusk palette. */
+:root {
+  --night: #1c1932;
+  --panel: #27223f;
+  --panel-2: #312b50;
+  --line: #463e70;
+  --ink: #f4ecda;
+  --dim: #aea6c9;
+  --gold: #f2c14e;
+  --harmony: #ff8fab;
+  --power: #7cc6f5;
+  --good: #8fd16a;
+  --bad: #ff7a6b;
+  --font-pixel: "Silkscreen", "Courier New", monospace;
+  --font-head: "Pixelify Sans", "Trebuchet MS", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--night); color: var(--ink); }
+body {
+  font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 48px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.brand { display: grid; gap: 2px; }
+.brand h1 { margin: 0; font-family: var(--font-pixel); font-weight: 700; font-size: clamp(1.7rem, 6vw, 2.6rem); line-height: 1; letter-spacing: .02em; color: var(--gold); text-shadow: 3px 3px 0 #7a4a1c; }
+.brand span { font-family: var(--font-head); color: var(--dim); font-size: .95rem; }
+.daybox { font-family: var(--font-pixel); text-align: right; line-height: 1; }
+.daybox b { display: block; font-size: 1.9rem; color: var(--ink); }
+.daybox small { color: var(--dim); font-size: .7rem; letter-spacing: .08em; }
+.themes { display: flex; border: 2px solid var(--line); }
+.themes button { background: transparent; border: 0; padding: 6px 10px; font-family: var(--font-head); font-size: .9rem; color: var(--dim); }
+.themes button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+
+.stage { position: relative; border: 3px solid var(--line); background: #0f1a2a; box-shadow: 6px 6px 0 #110e20; }
+.stage canvas { display: block; width: 100%; max-width: 760px; margin: 0 auto; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+.hud { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; background: var(--panel); border-top: 3px solid var(--line); font-family: var(--font-pixel); font-size: .78rem; }
+.hud span { display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+.hud b { font-size: .95rem; font-variant-numeric: tabular-nums; }
+.hud .sep { flex: 1 1 0; }
+.scores { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .scores { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.score { background: var(--panel); border: 2px solid var(--line); padding: 8px 10px; display: grid; gap: 4px; }
+.score .lbl { font-family: var(--font-pixel); font-size: .68rem; letter-spacing: .06em; color: var(--dim); }
+.score .val { font-family: var(--font-pixel); font-size: 1.35rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.score .bar { height: 6px; background: var(--panel-2); }
+.score .bar i { display: block; height: 100%; }
+.score.total { background: var(--panel-2); border-color: var(--gold); }
+.score.total .val { color: var(--gold); }
+.score .sub { font-size: .78rem; color: var(--dim); }
+.parts { margin: 2px 0 0; padding: 6px 0 0; border-top: 1px dashed var(--line); list-style: none; display: grid; gap: 2px; font-size: .76rem; color: var(--dim); }
+.parts li { display: flex; justify-content: space-between; gap: 8px; }
+.parts li b { font-family: var(--font-pixel); font-weight: 400; font-size: .7rem; font-variant-numeric: tabular-nums; }
+.parts li b.up { color: var(--good); } .parts li b.down { color: var(--bad); }
+.explain { margin: 0; font-size: .86rem; color: var(--dim); max-width: 90ch; }
+.explain b { color: var(--ink); }
+.card .fx { font-size: .8rem; color: var(--ink); }
+
+.cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
+@media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 2px solid var(--line); padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.panel h2 { margin: 0; font-family: var(--font-head); font-weight: 700; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.panel h2 small { font-family: var(--font-body); font-weight: 400; font-size: .8rem; color: var(--dim); }
+
+.board { display: grid; gap: 4px; }
+.fc { display: grid; grid-template-columns: 58px 22px minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 0; border-top: 1px dashed var(--line); font-size: .9rem; }
+.fc:first-child { border-top: 0; }
+.fc .d { font-family: var(--font-pixel); font-size: .7rem; color: var(--dim); padding-top: 2px; }
+.fc .tag { display: inline-block; margin-left: 6px; font-size: .72rem; padding: 0 5px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+.fc .tag.sure { border-color: var(--good); color: var(--good); }
+.fc.today { color: var(--gold); }
+.fc .detail { display: block; color: var(--dim); font-size: .82rem; }
+.horizon { font-size: .8rem; color: var(--dim); margin: 0; }
+
+.dial { display: grid; gap: 4px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.dial:first-of-type { border-top: 0; }
+.dial .nm { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: .9rem; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 2px solid var(--line); }
+.seg button { background: transparent; border: 0; border-left: 2px solid var(--line); padding: 5px 4px; font-size: .82rem; color: var(--dim); }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--night); font-weight: 700; }
+.dial .hint { font-size: .78rem; color: var(--dim); }
+
+.headline { margin: 0; font-family: var(--font-head); font-size: 1.05rem; color: var(--gold); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.card { text-align: left; background: var(--panel-2); border: 2px solid var(--line); padding: 10px; display: grid; gap: 4px; align-content: start; position: relative; }
+.card:hover:not(:disabled) { border-color: var(--dim); }
+.card[aria-pressed="true"] { border-color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); background: #3b3260; }
+.card:disabled { opacity: .45; cursor: not-allowed; }
+.card .row { display: flex; gap: 8px; align-items: center; }
+.card .em { font-size: 1.2rem; line-height: 1; }
+.card .nm { font-weight: 700; font-size: .92rem; line-height: 1.2; }
+.card .ds { font-size: .8rem; color: var(--dim); }
+.card .kind { justify-self: start; font-family: var(--font-pixel); font-size: .6rem; letter-spacing: .05em; padding: 2px 5px; background: var(--line); color: var(--ink); }
+.card .kind.special { background: var(--gold); color: var(--night); }
+.card .kind.gamble { background: var(--harmony); color: var(--night); }
+.card .kind.unlock { background: var(--power); color: var(--night); }
+.card .odds { font-size: .78rem; color: var(--harmony); font-weight: 700; }
+.card .why { font-size: .76rem; color: var(--bad); }
+.endbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border-top: 2px solid var(--line); padding-top: 10px; }
+.endbar p { margin: 0; font-size: .88rem; color: var(--dim); min-width: 0; }
+.endbar p b { color: var(--ink); }
+.big { font-family: var(--font-pixel); font-size: .95rem; background: var(--gold); color: var(--night); border: 0; padding: 10px 16px; box-shadow: 4px 4px 0 #7a4a1c; }
+.big:disabled { background: var(--line); color: var(--dim); box-shadow: none; cursor: not-allowed; }
+.big:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #7a4a1c; }
+.ghost { background: transparent; border: 2px solid var(--line); padding: 8px 12px; font-family: var(--font-head); }
+
+.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(15, 12, 30, .86); overflow-y: auto; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.overlay[hidden] { display: none; }
+.sheet { max-width: 720px; margin: 24px auto; background: var(--panel); border: 3px solid var(--gold); box-shadow: 8px 8px 0 #110e20; padding: 18px; display: grid; gap: 14px; }
+.sheet h3 { margin: 0; font-family: var(--font-pixel); font-size: 1.4rem; color: var(--gold); }
+.sheet h4 { margin: 0; font-family: var(--font-head); font-size: 1.05rem; }
+.log { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
+.deltas { display: flex; flex-wrap: wrap; gap: 6px; }
+.delta { font-family: var(--font-pixel); font-size: .72rem; padding: 3px 6px; border: 1px solid var(--line); }
+.delta.up { color: var(--good); border-color: var(--good); }
+.delta.down { color: var(--bad); border-color: var(--bad); }
+.crowd { display: grid; gap: 6px; }
+.cbar { display: grid; grid-template-columns: minmax(0, 1fr) 46px 62px; gap: 8px; align-items: center; font-size: .86rem; }
+.cbar .track { grid-column: 1 / -1; height: 8px; background: var(--panel-2); }
+.cbar .track i { display: block; height: 100%; background: var(--dim); }
+.cbar.mine .track i { background: var(--gold); }
+.cbar.mine .n { color: var(--gold); font-weight: 700; }
+.cbar .pc, .cbar .g { font-family: var(--font-pixel); font-size: .7rem; text-align: right; font-variant-numeric: tabular-nums; }
+.insight { margin: 0; padding: 10px 12px; background: var(--panel-2); border-left: 4px solid var(--gold); font-size: .92rem; }
+.rankline { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .9rem; }
+.rankline b { font-family: var(--font-pixel); color: var(--gold); }
+.lb { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.lb td { padding: 4px 6px; border-top: 1px dashed var(--line); }
+.lb td:last-child { text-align: right; font-family: var(--font-pixel); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.lb tr.me td { color: var(--gold); font-weight: 700; }
+pre.share { margin: 0; padding: 10px 12px; background: var(--night); border: 2px dashed var(--line); font-family: var(--font-body); white-space: pre-wrap; font-size: .92rem; }
+.row2 { display: flex; flex-wrap: wrap; gap: 10px; }
+.note { font-size: .8rem; color: var(--dim); margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: pop .18s ease-out; } @keyframes pop { from { transform: translateY(8px); opacity: .6; } } }
+.moods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 640px) { .moods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.gauge { background: var(--panel); border: 2px solid var(--line); padding: 8px 10px; display: grid; gap: 5px; }
+.gauge .lbl { font-family: var(--font-pixel); font-size: .66rem; letter-spacing: .06em; color: var(--dim); }
+.gauge .word { font-family: var(--font-head); font-weight: 700; font-size: 1.25rem; line-height: 1; }
+.gauge .pips { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.gauge .pips i { height: 7px; background: var(--panel-2); }
+.gauge .why { font-size: .78rem; color: var(--dim); }
+.council { gap: 12px; }
+.bubbles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.bubble { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: start; }
+.bubble .face { width: 40px; height: 40px; display: grid; place-items: center; font-size: 1.4rem; background: var(--panel-2); border: 2px solid var(--line); }
+.bubble .who { font-family: var(--font-head); font-weight: 700; font-size: .9rem; }
+.bubble .who small { font-family: var(--font-body); font-weight: 400; color: var(--dim); font-size: .78rem; }
+.bubble p { margin: 2px 0 0; font-size: .9rem; }
+.card .story { font-size: .84rem; color: var(--ink); }
+.card .arrows { font-family: var(--font-head); font-size: .82rem; color: var(--gold); }
+.dial .arrows { font-family: var(--font-head); font-size: .8rem; color: var(--gold); }
+details.ledger { background: var(--panel); border: 2px dashed var(--line); }
+details.ledger > summary { cursor: pointer; padding: 12px 14px; font-family: var(--font-head); font-weight: 700; font-size: 1.05rem; }
+details.ledger > summary small { font-family: var(--font-body); font-weight: 400; color: var(--dim); font-size: .8rem; margin-left: 8px; }
+.ledger-body { padding: 0 14px 14px; display: grid; gap: 12px; }
+.ledger-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; font-size: .82rem; color: var(--dim); }
+.ledger-cols h4 { margin: 0 0 6px; font-family: var(--font-head); color: var(--ink); font-size: .95rem; }
+.ledger-cols ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+.storybox { display: grid; gap: 8px; font-size: 1rem; line-height: 1.5; }
+.storybox p { margin: 0; }
+.echo { margin: 0; padding: 10px 12px; background: var(--panel-2); border-left: 4px solid var(--harmony); font-size: .95rem; }
+.echo b { display: block; font-family: var(--font-pixel); font-size: .66rem; letter-spacing: .06em; color: var(--harmony); margin-bottom: 2px; font-weight: 400; }
+.shifts { display: flex; flex-wrap: wrap; gap: 6px; }
+.shift { font-size: .84rem; padding: 3px 8px; border: 1px solid var(--line); }
+.shift.up { border-color: var(--good); color: var(--good); } .shift.down { border-color: var(--bad); color: var(--bad); }
+details.mini > summary { cursor: pointer; font-size: .85rem; color: var(--dim); }
+details.mini ul { margin: 6px 0 0; padding-left: 18px; font-size: .82rem; color: var(--dim); display: grid; gap: 3px; }
+/* ---- One-screen layout ---- */
+.tile[aria-disabled="true"] { opacity: .45; }
+body { padding-block: 10px 24px; }
+.wrap { max-width: 1180px; gap: 10px; }
+.top { flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.top h1 { margin: 0; font-family: var(--font-pixel); font-weight: 700; font-size: 1.45rem; line-height: 1; color: var(--gold); text-shadow: 2px 2px 0 #7a4a1c; }
+.top .season { font-family: var(--font-head); color: var(--dim); font-size: .9rem; flex: 1 1 auto; }
+.daybox b { display: inline; font-size: 1.25rem; }
+.daybox small { margin-left: 6px; }
+.themes button { padding: 4px 8px; font-size: .82rem; }
+.layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.left, .right { display: grid; gap: 8px; min-width: 0; }
+.stage canvas { width: 100%; height: auto; max-height: 300px; object-fit: contain; }
+@media (max-width: 880px) { .stage canvas { max-height: 210px; } }
+.hud { font-size: .7rem; padding: 6px 10px; gap: 4px 12px; }
+.hud b { font-size: .85rem; }
+.moods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.mood { background: var(--panel); border: 2px solid var(--line); padding: 5px 8px; display: grid; gap: 3px; cursor: help; }
+.mood .lbl { font-family: var(--font-pixel); font-size: .58rem; letter-spacing: .05em; color: var(--dim); }
+.mood .word { font-family: var(--font-head); font-weight: 700; font-size: 1rem; line-height: 1; }
+.mood .pips { display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; }
+.mood .pips i { height: 4px; background: var(--panel-2); }
+.voice { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: center; background: var(--panel); border: 2px solid var(--line); padding: 6px 8px; }
+.voice .face { width: 34px; height: 34px; display: grid; place-items: center; font-size: 1.15rem; background: var(--panel-2); }
+.voice p { margin: 0; font-size: .88rem; }
+.voice p b { font-family: var(--font-head); }
+.voice .more { background: none; border: 0; color: var(--dim); font-size: .78rem; padding: 0; text-decoration: underline; margin-left: 4px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: 6px; }
+.chipday { background: var(--panel); border: 2px solid var(--line); padding: 5px 7px; display: grid; gap: 2px; min-width: 0; }
+.chipday .d { font-family: var(--font-pixel); font-size: .58rem; color: var(--dim); }
+.chipday .t { font-size: .8rem; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.chipday.today { border-color: var(--gold); }
+.chipday .c { font-size: .66rem; color: var(--dim); }
+.chipday .c.sure { color: var(--good); }
+.right { background: var(--panel); border: 2px solid var(--line); padding: 10px; }
+.right .headline { margin: 0; font-size: 1rem; }
+.orders { border: 2px solid var(--line); background: var(--panel-2); }
+.orders-sum { width: 100%; display: flex; gap: 8px; align-items: center; background: none; border: 0; padding: 6px 8px; text-align: left; font-size: .8rem; color: var(--dim); }
+.orders-sum .lbl { font-family: var(--font-pixel); font-size: .6rem; color: var(--ink); }
+.orders-sum #ordersSummary { flex: 1 1 auto; min-width: 0; }
+.orders-sum .chev { color: var(--gold); font-family: var(--font-head); }
+#dials { padding: 4px 8px 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 12px; }
+#dials .dial { border-top: 0; padding: 3px 0; gap: 2px; }
+#dials .dial .nm { font-size: .78rem; }
+#dials .seg button { padding: 3px 2px; font-size: .74rem; }
+#dials .arrows { font-size: .72rem; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 520px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { text-align: left; background: var(--panel-2); border: 2px solid var(--line); padding: 6px 7px; display: grid; gap: 2px; align-content: start; min-width: 0; position: relative; }
+.tile:hover:not(:disabled) { border-color: var(--dim); }
+.tile[aria-pressed="true"] { border-color: var(--gold); background: #3b3260; box-shadow: inset 0 0 0 1px var(--gold); }
+.tile:disabled { opacity: .4; cursor: not-allowed; }
+.tile .nm { font-weight: 700; font-size: .8rem; line-height: 1.2; }
+.tile .ar { font-family: var(--font-head); font-size: .72rem; color: var(--gold); line-height: 1.2; }
+.tile .flag { justify-self: start; font-family: var(--font-pixel); font-size: .52rem; padding: 1px 4px; line-height: 1.3; }
+.tile .flag.special { background: var(--gold); color: var(--night); }
+.tile .flag.gamble { background: var(--harmony); color: var(--night); }
+.tile .flag.unlock { background: var(--power); color: var(--night); }
+.tile.group { border-style: dashed; }
+.decide { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border-top: 2px solid var(--line); padding-top: 8px; }
+@media (max-width: 520px) { .decide { grid-template-columns: minmax(0, 1fr); } }
+.detail { min-height: 3.2em; font-size: .86rem; }
+.detail p { margin: 0; }
+.detail .placeholder { color: var(--dim); }
+.detail .dn { font-family: var(--font-head); font-weight: 700; }
+.detail .odds { color: var(--harmony); font-weight: 700; font-size: .8rem; }
+.detail .why { color: var(--bad); font-size: .8rem; }
+.sheet { max-width: 560px; margin: 16px auto; gap: 10px; padding: 14px; }
+.sheet h3 { font-size: 1.15rem; }
+.storybox { font-size: .95rem; gap: 4px; }
+.crowd .cbar { font-size: .8rem; }
+.daybox .grid { display: block; font-size: .7rem; letter-spacing: 1px; margin-top: 3px; line-height: 1; }
+.bestmove { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px; border: 2px solid var(--line); background: var(--panel-2); }
+.bestmove.best { border-color: var(--good); } .bestmove.solid { border-color: var(--gold); } .bestmove.weak { border-color: var(--bad); }
+.bestmove .sq { font-size: 1.6rem; line-height: 1; }
+.bestmove p, .seasongrid p { margin: 0; font-size: .9rem; }
+.bm-lbl { font-family: var(--font-pixel); font-size: .62rem !important; letter-spacing: .06em; color: var(--dim); }
+.bm-you { color: var(--dim); font-size: .84rem !important; }
+.gridsmall { font-size: .7rem; letter-spacing: 1px; margin-left: 6px; }
+.seasongrid { display: grid; gap: 4px; text-align: center; padding: 10px; border: 2px solid var(--gold); background: var(--panel-2); }
+.seasongrid .bigrid { font-size: 1.8rem; letter-spacing: 4px; line-height: 1.2; }
+</style>
+
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Thirty Days</h1>
+    <span class="season" id="seasonName">Season 1 · The Frontier</span>
+    <div class="themes" role="group" aria-label="Theme pack">
+      <button id="th-frontier" aria-pressed="true">Frontier</button>
+      <button id="th-fleet" aria-pressed="false">Fleet</button>
+    </div>
+    <div class="daybox"><b id="dayNum">DAY 1</b><small id="dayOf">OF 7</small><span class="grid" id="grid" title="🟩 best move · 🟨 good · 🟥 missed"></span></div>
+  </header>
+
+  <div class="layout">
+    <div class="left">
+      <section class="stage" aria-label="Your settlement">
+        <canvas id="diorama" width="208" height="112"></canvas>
+        <div class="hud" id="hud"></div>
+      </section>
+      <div class="moods" id="moods" aria-label="How the settlement is doing"></div>
+      <div class="voice" id="council" aria-live="polite"></div>
+      <div class="strip" id="board" aria-label="Coming up"></div>
+    </div>
+
+    <section class="right" aria-label="Today">
+      <p class="headline" id="headline"></p>
+      <div class="orders" id="orders">
+        <button class="orders-sum" id="ordersToggle" aria-expanded="false" aria-controls="dials"><span class="lbl">ORDERS</span><span id="ordersSummary"></span><span class="chev">Change</span></button>
+        <div id="dials" hidden></div>
+      </div>
+      <div class="tiles" id="cards"></div>
+      <div class="decide" id="decide">
+        <div class="detail" id="detail"><p class="placeholder">Pick a Focus for today. Your orders run everything else.</p></div>
+        <button class="big" id="endDay" disabled>End day</button>
+      </div>
+    </section>
+  </div>
+
+  <details class="ledger" id="ledgerBox">
+    <summary>The ledger <small>every number behind the story</small></summary>
+    <div class="ledger-body">
+      <section class="scores" id="scores" aria-label="Scores"></section>
+      <p class="explain" id="explain"></p>
+      <div class="ledger-cols"><div id="ledgerDials"></div><div id="ledgerFocus"></div></div>
+    </div>
+  </details>
+</div>
+
+<div class="overlay" id="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+
+<script>
+// ============================================================================
+// THIRTY DAYS — rules, story and content (no DOM). The page and tests load this.
+//
+// THE MODEL (all of this runs in the background; players see words and arrows)
+//   Resources are what you HAVE:  Food, Gold, Materials, Settlers.
+//   Scores are how you're DOING:  Wealth, Harmony, Power.
+//     Wealth  = everything you own (Gold + Materials + buildings)
+//     Harmony = built from Food (fed or hungry), your orders, buildings, recent events
+//     Power   = built from Settlers (defenders), Militia, walls, recent training
+//   Scores feed back: Harmony boosts all output, Power protects your stores.
+//   Settlement score = Wealth × Harmony × Power.
+// ============================================================================
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const r0 = v => Math.round(v);
+
+const SEASON = { days: 7, start: { food: 60, gold: 40, materials: 20, pop: 12, mood: 0, training: 2 } };
+
+// ---------- Standing orders: four dials ----------
+const ORDER_FX = {
+  work:  { output: [0.85, 1, 1.25], gold: [0.5, 0.8, 1.2], harmony: [10, 0, -14] },
+  table: { eat: [0.7, 1, 1.4], harmony: [-8, 0, 10] },
+  gates: { harmony: [0, 0, -4], raid: [1.3, 1, 0.6] },
+  guard: { power: [0, 10, 25], gold: [0, 3, 8], food: [0, 0, 3] },
+};
+const DIALS = [
+  { id: 'work',  name: 'Work',  opts: ['Easy', 'Steady', 'Hard'],
+    arrows: ['Output ↓ · Gold ↓ · Harmony ↑↑', 'Steady', 'Output ↑ · Gold ↑ · Harmony ↓↓'],
+    hint: ['Output 85% · 0.5 Gold per settler · Harmony +10', 'Output 100% · 0.8 Gold per settler', 'Output 125% · 1.2 Gold per settler · Harmony −14'] },
+  { id: 'table', name: 'Table', opts: ['Lean', 'Normal', 'Feast'],
+    arrows: ['Food lasts longer · Harmony ↓', 'Steady', 'Food ↓↓ · Harmony ↑↑'],
+    hint: ['0.7 Food each · Harmony −8', '1 Food each', '1.4 Food each · Harmony +10'] },
+  { id: 'gates', name: 'Gates', opts: ['Open', 'Watched', 'Shut'],
+    arrows: ['Settlers ↑↑ while people are happy · raids hit harder', 'Settlers ↑ while people are content', 'No newcomers · raids hit softer · Harmony ↓'],
+    hint: ['+2 settlers a day if Harmony 40+ · raids ×1.3', '+1 settler a day if Harmony 55+', 'No newcomers · raids ×0.6 · Harmony −4'] },
+  { id: 'guard', name: 'Guard', opts: ['None', 'Patrol', 'Garrison'],
+    arrows: ['Free · Power ↓', 'Power ↑ · costs a little Gold', 'Power ↑↑ · costs Gold and Food'],
+    hint: ['Power +0', 'Power +10 · 3 Gold a day', 'Power +25 · 8 Gold and 3 Food a day'] },
+];
+const DEFAULT_ORDERS = { work: 1, table: 1, gates: 1, guard: 1 };
+
+// ---------- Buildings ----------
+const BUILDINGS = {
+  fields:   { name: 'Fields',   cost: { materials: 20, gold: 5 },  desc: '+4 Food a day', story: 'Fresh furrows on the south slope. More grain every day.', arrows: 'Food ↑ every day' },
+  sawmill:  { name: 'Sawmill',  cost: { materials: 10, gold: 15 }, desc: '+6 Materials a day', story: 'A waterwheel and a saw that never tires.', arrows: 'Materials ↑ every day' },
+  market:   { name: 'Market',   cost: { materials: 20, gold: 10 }, desc: '+6 Gold a day, Harmony +3, unlocks Host a fair', story: 'Stalls in the square. Pip is beside himself.', arrows: 'Gold ↑ every day · Harmony ↑ · unlocks fairs' },
+  tavern:   { name: 'Tavern',   cost: { materials: 15, gold: 15 }, desc: 'Harmony +8, unlocks Tavern night', story: 'Somewhere to sit, drink, and complain. Everyone is happier for it.', arrows: 'Harmony ↑↑ for good · unlocks tavern nights' },
+  palisade: { name: 'Palisade', cost: { materials: 30, gold: 10 }, desc: 'Power +10, unlocks Man the walls', story: 'Sharpened logs around the whole settlement. Rook finally sleeps.', arrows: 'Power ↑↑ for good · unlocks manning the walls' },
+};
+const BUILDING_VALUE = 20;
+const has = (s, b) => s.buildings.includes(b);
+const canAfford = (s, cost) => Object.entries(cost).every(([k, v]) => s[k] >= v);
+const pay = (s, cost) => Object.entries(cost).forEach(([k, v]) => { s[k] -= v; });
+
+// ---------- Scores (sums of named parts; shown only in the Ledger) ----------
+function eatenPerDay(s, o) { return s.pop * ORDER_FX.table.eat[o.table]; }
+function stats(s, o) {
+  const eat = eatenPerDay(s, o), days = eat > 0 ? s.food / eat : 9;
+  const h = [['Base', 40]];
+  if (days >= 3) h.push(['Well fed (3+ days of Food)', 15]);
+  else if (days >= 1) h.push(['Food is getting low', 5]);
+  else h.push(['Hungry (less than a day of Food)', -15]);
+  const hp = (lbl, v) => { if (v) h.push([lbl, v]); };
+  hp('Table: ' + DIALS[1].opts[o.table], ORDER_FX.table.harmony[o.table]);
+  hp('Work: ' + DIALS[0].opts[o.work], ORDER_FX.work.harmony[o.work]);
+  hp('Gates: ' + DIALS[2].opts[o.gates], ORDER_FX.gates.harmony[o.gates]);
+  if (has(s, 'tavern')) hp('Tavern', 8);
+  if (has(s, 'market')) hp('Market', 3);
+  hp('Good memories', s.legacy || 0);
+  hp('Recent events', r0(s.mood));
+  const harmony = clamp(h.reduce((a, [, v]) => a + v, 0), 5, 100);
+  const p = [['Settlers as defenders', r0(s.pop * 1.5)]];
+  const pp = (lbl, v) => { if (v) p.push([lbl, v]); };
+  pp('Guard: ' + DIALS[3].opts[o.guard], ORDER_FX.guard.power[o.guard]);
+  if (has(s, 'palisade')) pp('Palisade', 10);
+  pp('Recent training', r0(s.training));
+  if (harmony < 30) pp('Low morale', -10);
+  const power = clamp(p.reduce((a, [, v]) => a + v, 0), 5, 100);
+  const w = [['Gold', s.gold], ['Materials (half value until used)', r0(s.materials * 0.5)], ['Food in store (quarter value)', r0(s.food * 0.25)]];
+  if (s.buildings.length) w.push([`Buildings (${s.buildings.length} × ${BUILDING_VALUE})`, s.buildings.length * BUILDING_VALUE]);
+  const wealth = Math.max(1, w.reduce((a, [, v]) => a + v, 0));
+  const output = +(0.7 + harmony * 0.006).toFixed(2);
+  // Temporary boosts (recent events, training) count half toward the score, so lasting choices win over time
+  const scoreH = clamp(harmony - r0(s.mood) * 0.5, 5, 100), scoreP = clamp(power - r0(s.training) * 0.5, 5, 100);
+  const score = r0(wealth * scoreH * scoreP / 1000);
+  // Lasting score ignores temporary boosts entirely; the crowd reveal compares on this
+  const lasting = r0(wealth * clamp(harmony - r0(s.mood), 5, 100) * clamp(power - r0(s.training), 5, 100) / 1000);
+  return { harmony, harmonyParts: h, power, powerParts: p, wealth, wealthParts: w, output, score, scoreH, scoreP, lasting, foodDays: days };
+}
+
+// ---------- Words instead of numbers ----------
+const MOODS = {
+  harmony: v => v >= 75 ? 'Joyful' : v >= 55 ? 'Content' : v >= 35 ? 'Restless' : 'Angry',
+  power:   v => v >= 60 ? 'Fortified' : v >= 45 ? 'Guarded' : v >= 25 ? 'Thin' : 'Exposed',
+  wealth:  v => v >= 300 ? 'Prosperous' : v >= 160 ? 'Comfortable' : v >= 80 ? 'Getting by' : 'Poor',
+  food:    d => d >= 6 ? 'Plenty' : d >= 3 ? 'Enough' : d >= 1 ? 'Running low' : 'Starving',
+};
+
+// ---------- The cast ----------
+const CAST = {
+  marta: { name: 'Old Marta', role: 'the elder', face: '👵' },
+  rook:  { name: 'Captain Rook', role: 'the militia', face: '🛡️' },
+  pip:   { name: 'Pip', role: 'the trader', face: '🧮' },
+  hollis:{ name: 'Hollis', role: 'the farmer', face: '🧑‍🌾' },
+};
+// What the cast says at the morning council. Each rule: who, priority, when(s, st, o, day), line
+const COUNCIL = [
+  { who: 'hollis', p: 9, when: (s, st) => st.foodDays < 1, line: 'We\'re eating the seed grain. If nothing changes, families will start leaving.' },
+  { who: 'hollis', p: 6, when: (s, st) => st.foodDays < 2.5, line: 'The granary\'s getting thin. One bad day and we\'re in trouble.' },
+  { who: 'hollis', p: 7, when: (s, st, o, d) => d === 3 && s.scoutedUntil >= 4, line: 'Word is a storm hits tomorrow. Whatever we need from outside, we\'d best grab it today.' },
+  { who: 'hollis', p: 8, when: (s, st, o, d) => d === 4, line: 'This storm is flattening everything. Nothing will grow today, whatever we do.' },
+  { who: 'hollis', p: 2, when: (s, st, o, d) => d === 7, line: 'Frost on the leaves this morning. The fields are done for the year.' },
+  { who: 'hollis', p: 2, when: (s, st, o, d) => d === 3, line: 'Good soaking rain. The crops are drinking it up.' },
+  { who: 'hollis', p: 3, when: (s, st) => st.foodDays >= 6, line: 'Granary\'s full to the rafters. We could spare some for a feast, or sell it.' },
+  { who: 'marta',  p: 8, when: (s, st) => st.harmony < 35, line: 'People are angry. I hear talk of leaving. Give them something, anything.' },
+  { who: 'marta',  p: 5, when: (s, st, o) => o.work === 2, line: 'Working them this hard, chief? Backs are breaking, and the tax collector isn\'t making friends.' },
+  { who: 'marta',  p: 4, when: (s, st, o) => o.table === 0, line: 'Lean rations make for short tempers.' },
+  { who: 'marta',  p: 3, when: (s, st) => st.harmony >= 75, line: 'I haven\'t seen this many smiles in years. Whatever you\'re doing, keep doing it.' },
+  { who: 'rook',   p: 9, when: (s, st, o, d) => (d === 4 || d === 5) && st.power < 45 && (s.scoutedUntil >= 5 || d === 5), line: 'Those riders are real, and they\'re coming. We are not ready for them.' },
+  { who: 'rook',   p: 6, when: (s, st, o, d) => d === 3 && s.scoutedUntil < 5, line: 'Hunters saw riders on the east ridge. I can\'t tell you how many without scouts.' },
+  { who: 'rook',   p: 7, when: (s, st) => st.power < 25, line: 'Thieves walk right past my patrols. We\'re stretched too thin.' },
+  { who: 'rook',   p: 4, when: (s, st, o) => o.guard === 0, line: 'No militia at all? Bold. I hope the valley stays friendly.' },
+  { who: 'rook',   p: 2, when: (s, st) => st.power >= 60, line: 'The walls are manned and my people are sharp. Let them come.' },
+  { who: 'pip',    p: 6, when: s => s.gold < 15, line: 'The treasury\'s nearly empty. One more bad day and wages go unpaid.' },
+  { who: 'pip',    p: 5, when: (s, st, o, d) => d === 2, line: 'Timber\'s fetching a fine price today, chief. Just saying.' },
+  { who: 'pip',    p: 6, when: (s, st, o, d) => d === 6, line: 'A caravan! They pay well over market. I\'ve been waiting all week for this.' },
+  { who: 'pip',    p: 3, when: s => s.materials >= 40, line: 'The yard is stacked with timber. Build something, or let me sell it.' },
+  { who: 'marta',  p: 1, when: (s, st, o, d) => d === 1, line: 'First morning, chief. The valley is watching to see what kind of leader you are.' },
+  { who: 'hollis', p: 1, when: () => true, line: 'Weather\'s holding. The fields are doing what fields do.' },
+  { who: 'pip',    p: 1, when: () => true, line: 'Quiet market today. Coins in, coins out.' },
+];
+function council(s, o) {
+  const st = stats(s, o), d = s.day, used = new Set();
+  return COUNCIL.filter(r => r.when(s, st, o, d)).sort((a, b) => b.p - a.p)
+    .filter(r => !used.has(r.who) && used.add(r.who)).slice(0, 3)
+    .map(r => ({ ...CAST[r.who], who: r.who, line: r.line }));
+}
+
+// ---------- The shared world ----------
+const SCRIPT = {
+  1: { weather: 'clear', prices: { food: 0.5, materials: 1.0 }, headline: 'Clear skies over the valley. Your first morning.', specials: ['tinker', 'elk'] },
+  2: { weather: 'clear', prices: { food: 0.5, materials: 1.4 }, headline: 'Timber merchants are in town, paying well.', specials: ['bard', 'barge'] },
+  3: { weather: 'rain',  prices: { food: 0.5, materials: 1.0 }, headline: 'Steady rain, and strangers on the east road.', specials: ['well', 'refugees'] },
+  4: { weather: 'storm', prices: { food: 0.7, materials: 1.0 }, headline: 'A storm tears through the valley.', specials: ['shelter', 'salvage'] },
+  5: { weather: 'clear', prices: { food: 0.6, materials: 1.0 }, headline: 'Riders on the east ridge. Raiders.', specials: ['mercs', 'parley'], event: 'raid', raid: 45 },
+  6: { weather: 'clear', prices: { food: 0.8, materials: 1.6 }, headline: 'A merchant caravan rolls in with full wagons.', specials: ['caravan', 'cards'], event: 'caravan' },
+  7: { weather: 'frost', prices: { food: 0.6, materials: 1.0 }, headline: 'First frost. Tonight is the first winter night.', specials: ['stockpile', 'bonfire'], event: 'winter' },
+};
+const FORECAST = [
+  { day: 1, kind: 'weather',     text: 'Clear skies',            cert: 'certain', detail: 'Clear skies' },
+  { day: 2, kind: 'market',      text: 'Timber prices rising',   cert: 'rumor',   detail: 'Timber merchants arrive on day 2 and pay well for Materials' },
+  { day: 3, kind: 'weather',     text: 'Rain coming',            cert: 'likely',  detail: 'Rain on day 3. Good for the crops' },
+  { day: 4, kind: 'weather',     text: 'Storm likely',           cert: '70%',     detail: 'A storm hits on day 4. The farms will make almost nothing' },
+  { day: 5, kind: 'threat',      text: 'Raiders sighted east',   cert: 'strength unknown', detail: 'A big band of raiders on day 5. You\'ll need defenses at Guarded or better (Fortified if your borders are open)' },
+  { day: 6, kind: 'opportunity', text: 'Something on the road',  cert: 'unknown', detail: 'A merchant caravan on day 6, paying well over market' },
+  { day: 7, kind: 'weather',     text: 'Cold snap coming',       cert: 'rumor',   detail: 'First frost on day 7. The first winter night needs a well-stocked granary' },
+];
+const WEATHER_FOOD = { clear: 1, rain: 1.15, storm: 0.2, frost: 0.6 };
+
+// ============================================================================
+// DAILY FOCUS LIST — edit freely. Each option:
+//   id, emoji, kind ('core' | 'build' | 'unlock' | 'special' | 'gamble'), name
+//   story:  the card text, written as a moment
+//   arrows: what it does, in arrows (no numbers)
+//   fx:     the exact numbers, shown only in the Ledger
+//   when(s), ok(s, st), apply(s, c) — apply pushes STORY lines to c.log
+//   (Harmony changes go through s.mood, Power through s.training)
+// ============================================================================
+const FOCUS = [
+  { id: 'harvest', emoji: '🌾', kind: 'core', name: 'Bring in the harvest', story: 'Everyone to the fields while the weather holds.', arrows: 'Food ↑↑', fx: 'About +15 Food (weather and Harmony matter)',
+    apply(s, c) { const f = r0((s.pop * 1.25 + (has(s, 'fields') ? 4 : 0)) * c.weatherFood * c.toolBonus * c.output); s.food += f; c.log.push(c.weatherFood < 0.5 ? 'You sent everyone into the storm to save the crop. They saved what little they could.' : 'Carts of grain rolled in until sunset. Hollis was grinning.'); } },
+  { id: 'trade', emoji: '🛒', kind: 'core', name: 'Sell surplus at market', story: 'Pip loads the carts with spare timber and grain.', arrows: 'Materials ↓ · spare Food ↓ · Gold ↑↑', fx: 'Sell Materials above 10 and Food above 5 days, at today\'s prices, and Pip haggles 20% extra',
+    apply(s, c) {
+      const mat = Math.max(0, s.materials - 10), food = Math.max(0, r0(s.food - c.eat * 5));
+      const g = r0((mat * c.prices.materials + food * c.prices.food) * 1.2);
+      s.materials -= mat; s.food -= food; s.gold += g;
+      c.log.push(g > 25 ? 'Pip came back with a heavy purse and a big smile.' : g > 0 ? 'Pip sold what he could. Not a great day for it.' : 'Pip found nothing worth selling.');
+    } },
+  { id: 'drill', emoji: '⚔️', kind: 'core', name: 'Drill the militia', story: 'Rook wants a full day of training. Nobody else will enjoy it.', arrows: 'Power ↑↑ for a few days · Gold ↓ · Harmony ↓', fx: '−5 Gold → Power +15 (fades 20% a day, counts half toward score) · Harmony −3',
+    ok: s => s.gold >= 5 || 'Needs 5 Gold for weapons and food',
+    apply(s, c) { s.training += 15; s.mood -= 3; s.gold -= 5; c.log.push('Rook drilled the militia until dark. They\'re sore, and sharper for it.'); } },
+  { id: 'festival', emoji: '🎪', kind: 'core', name: 'Hold a festival', story: 'Music, roasted grain, and a day off for everyone.', arrows: 'Food ↓ · Harmony ↑↑ now and ↑ for good (more when Work is Easy)', fx: '−10 Food → Harmony +14 now (+24 with Work on Easy) and +4 for good',
+    ok: s => s.food >= 10 || 'Needs 10 Food',
+    apply(s, c) { s.food -= 10; const h = c.orders.work === 0 ? 24 : 14; s.mood += h; s.legacy = Math.min(12, (s.legacy || 0) + 4); c.log.push(c.orders.work === 0 ? 'With the whole day off, the festival ran until dawn. Even Marta danced.' : 'The festival ran late into the night. People needed that.'); } },
+  { id: 'scout', emoji: '🔭', kind: 'core', name: 'Scout the frontier', story: 'Send riders out to see what\'s coming.', arrows: 'See 4 days ahead · Materials ↑', fx: 'Reveal 4 days in exact detail · +10 Materials',
+    apply(s, c) { s.scoutedUntil = Math.max(s.scoutedUntil, c.day + 4); s.materials += 10; c.log.push('The scouts came back dusty, with news of the days ahead.'); } },
+  { id: 'welcome', emoji: '🚪', kind: 'core', name: 'Welcome newcomers', story: 'Ride to the crossroads and offer work to anyone willing.', arrows: 'Settlers ↑ · Food ↓', fx: '−6 Food → +4 Settlers',
+    apply(s, c) { s.pop += 4; s.food -= 6; c.log.push('Four newcomers followed you home. More hands, more mouths.'); } },
+  { id: 'prospect', emoji: '🎲', kind: 'gamble', odds: '3 in 10: a silver seam · 7 in 10: nothing', name: 'Prospect the hills', story: 'An old miner swears there\'s silver up there.', arrows: 'Maybe Gold ↑↑↑', fx: '30%: +45 Gold · 70%: nothing',
+    apply(s, c) { if (c.rng() < 0.3) { s.gold += 45; c.log.push('Silver! The prospectors struck a seam and came home shouting.'); c.gambleWon = true; } else { c.log.push('The prospectors came back with nothing but blisters.'); c.gambleWon = false; } } },
+  { id: 'banditcamp', emoji: '🎲', kind: 'gamble', odds: 'Better than even: loot · otherwise: losses', name: 'Raid the bandit camp', story: 'Hit the bandits in the gorge before they hit you. Needs a strong militia.', arrows: 'Maybe Gold ↑↑ · or Settlers ↓', fx: 'Needs Power 40+ · 55%: +35 Gold, Power +8 · 45%: lose 2 settlers, Harmony −8',
+    ok: (s, st) => st.power >= 40 || 'Rook says you\'re not strong enough yet',
+    apply(s, c) { if (c.rng() < 0.55) { s.gold += 35; s.training += 8; c.log.push('The raid on the bandit camp worked. Your people came home with their strongbox.'); c.gambleWon = true; } else { s.pop -= 2; s.mood -= 8; c.log.push('The raid went badly. Two settlers didn\'t come back.'); c.gambleWon = false; } } },
+
+  { id: 'fair', emoji: '🎡', kind: 'unlock', name: 'Host a fair', story: 'Your market draws traders from all over the valley.', arrows: 'Gold ↑↑ · Harmony ↑', fx: '+22 Gold · Harmony +8', when: s => has(s, 'market'),
+    apply(s, c) { s.gold += 22; s.mood += 8; c.log.push('The fair was packed. Pip counted coins until midnight.'); } },
+  { id: 'tavernnight', emoji: '🍺', kind: 'unlock', name: 'Tavern night', story: 'Drinks on the house. Mostly.', arrows: 'Harmony ↑↑ · Gold ↑ · Food ↓', fx: '−5 Food → Harmony +12 · +8 Gold', when: s => has(s, 'tavern'),
+    apply(s, c) { s.mood += 12; s.gold += 8; s.food -= 5; c.log.push('A loud, happy night at the tavern. Someone wrote a song about you. It\'s not flattering, but it\'s affectionate.'); } },
+  { id: 'walls', emoji: '🛡️', kind: 'unlock', name: 'Man the walls', story: 'Everyone takes a shift on the palisade.', arrows: 'Power ↑↑↑ for a few days', fx: 'Power +22 (fades 20% a day)', when: s => has(s, 'palisade'),
+    apply(s, c) { s.training += 22; c.log.push('Torches on every post, eyes on every road. Rook approved.'); } },
+
+  // Daily specials
+  { id: 'tinker', emoji: '🔧', kind: 'special', name: 'Hire the stranded tinker', story: 'A tinker limps into town with a broken cart. For 10 gold, he\'ll sharpen every tool you own.', arrows: 'Gold ↓ now · all output ↑ for the season', fx: '−10 Gold → Food and Materials output +15% for the season',
+    ok: s => s.gold >= 10 || 'Needs 10 Gold',
+    apply(s, c) { s.gold -= 10; s.tools = true; s.met.tinker = 'hired'; c.log.push('The tinker worked all day. Every blade in town now cuts like new. He tipped his hat as he left: "I won\'t forget this."'); } },
+  { id: 'elk', emoji: '🦌', kind: 'special', name: 'Hunt the passing elk herd', story: 'A herd is moving through the valley. It won\'t be here tomorrow.', arrows: 'Food ↑↑↑ · Harmony ↑', fx: '+28 Food · Harmony +4',
+    apply(s, c) { s.food += 28; s.mood += 4; c.log.push('The hunters brought back more elk than the smokehouse could hold.'); } },
+  { id: 'bard', emoji: '🎻', kind: 'special', name: 'Give the bard a stage', story: 'A traveling bard asks for a stage and a meal. Bards hear everything.', arrows: 'Harmony ↑↑ · see 2 days ahead', fx: 'Harmony +10 · reveal the next 2 days',
+    apply(s, c) { s.mood += 10; s.scoutedUntil = Math.max(s.scoutedUntil, c.day + 2); s.met.bard = true; c.log.push('The bard sang half the night, and between songs, told you everything he\'d seen on the road.'); } },
+  { id: 'barge', emoji: '🪵', kind: 'special', name: 'Buy the cheap timber barge', story: 'A barge captain needs to unload fast. His whole cargo, cheap.', arrows: 'Gold ↓ · Materials ↑↑↑', fx: '−15 Gold → +30 Materials',
+    ok: s => s.gold >= 15 || 'Needs 15 Gold',
+    apply(s, c) { s.gold -= 15; s.materials += 30; c.log.push('The barge unloaded a mountain of timber on the riverbank.'); } },
+  { id: 'well', emoji: '🎲', kind: 'gamble', special: true, odds: '6 in 10: water · 4 in 10: dry rock', name: 'Dig a deep well', story: 'Hollis thinks there\'s water under the square. If he\'s right, the fields never go thirsty.', arrows: 'Maybe Food ↑ every day · or Materials ↓', fx: '60%: +4 Food a day for the season · 40%: −10 Materials',
+    ok: s => s.materials >= 10 || 'Needs 10 Materials',
+    apply(s, c) { if (c.rng() < 0.6) { s.well = true; c.log.push('Water! Cold and clear, right under the square. Hollis says he knew it all along.'); c.gambleWon = true; } else { s.materials -= 10; c.log.push('Dry rock, all the way down. Hollis is very quiet today.'); c.gambleWon = false; } } },
+  { id: 'refugees', emoji: '🧳', kind: 'special', name: 'Take in the refugees', story: 'Five families from the east, fleeing the same raiders your hunters spotted.', arrows: 'Settlers ↑↑ · Food ↓ · Harmony ↑', fx: '−10 Food → +5 Settlers · Harmony +8',
+    apply(s, c) { s.pop += 5; s.food -= 10; s.mood += 8; s.met.refugees = true; c.log.push('Five families found a home here. Their eldest told Rook everything she knows about the raiders.'); } },
+  { id: 'shelter', emoji: '🏚️', kind: 'special', name: 'Shelter storm travelers', story: 'A merchant family is caught on the road in the storm.', arrows: 'Food ↓ · Gold ↑ · Harmony ↑↑', fx: '−8 Food → +15 Gold · Harmony +12',
+    apply(s, c) { s.food -= 8; s.mood += 12; s.gold += 15; s.met.travelers = true; c.log.push('The travelers rode out the storm in your hall. They paid for their keep and promised to return the favor.'); } },
+  { id: 'salvage', emoji: '🪓', kind: 'special', name: 'Salvage the storm wreckage', story: 'The storm knocked down half the forest. Free timber, if you can haul it.', arrows: 'Materials ↑↑', fx: '+22 Materials',
+    apply(s, c) { s.materials += 22; c.log.push('Crews hauled fallen timber all day. The yard is piled high.'); } },
+  { id: 'mercs', emoji: '🗡️', kind: 'special', name: 'Hire mercenaries for the day', story: 'Swords for hire at the crossroads. Expensive, and only for today.', arrows: 'Gold ↓↓ · Power ↑↑↑ today', fx: '−25 Gold → Power +30 today',
+    ok: s => s.gold >= 25 || 'Needs 25 Gold',
+    apply(s, c) { s.gold -= 25; c.tempPower += 30; c.log.push('Mercenaries stand on your walls today, chewing and bored.'); } },
+  { id: 'parley', emoji: '🎲', kind: 'gamble', special: true, odds: 'Coin flip: they ride past, or they take a toll and attack anyway', name: 'Parley with the raiders', story: 'Ride out under a white flag and try to talk them down.', arrows: 'Maybe no raid at all · or Gold ↓', fx: '50%: raid avoided · 50%: −20 Gold and the raid happens',
+    apply(s, c) { if (c.rng() < 0.5) { c.raidAvoided = true; c.log.push('The parley worked. The raiders rode past, looking for easier prey.'); c.gambleWon = true; } else { s.gold = Math.max(0, s.gold - 20); c.log.push('They took a toll in gold, laughed, and attacked anyway.'); c.gambleWon = false; } } },
+  { id: 'caravan', emoji: '🐫', kind: 'special', name: 'Trade with the caravan', story: 'Caravan buyers pay well over market, and they carry spices.', arrows: 'Materials ↓ · spare Food ↓ · Gold ↑↑↑ · Harmony ↑', fx: 'Sells at 25% over market · Harmony +6',
+    apply(s, c) {
+      const mat = Math.max(0, s.materials - 10), food = Math.max(0, r0(s.food - c.eat * 5));
+      const bonus = s.met.tinker === 'hired' ? 1.4 : s.met.tinker === 'refused' ? 1.1 : 1.25;
+      const g = r0(mat * c.prices.materials * bonus + food * c.prices.food * bonus);
+      s.materials -= mat; s.food -= food; s.gold += g; s.mood += 6;
+      c.log.push(g > 40 ? 'The caravan emptied your yard and filled your treasury. The spices smell incredible.' : 'The caravan bought what little you had to sell.');
+    } },
+  { id: 'cards', emoji: '🎲', kind: 'gamble', special: true, odds: 'Slightly worse than even: double your bet, or lose it', name: 'Play the caravan\'s card sharp', story: 'He swears the game is fair. He has a lot of rings.', arrows: 'Maybe Gold ↑↑ · or Gold ↓', fx: 'Bet 20 · 45%: +40 Gold · 55%: −20 Gold',
+    ok: s => s.gold >= 20 || 'Needs 20 Gold to sit down',
+    apply(s, c) { if (c.rng() < 0.45) { s.gold += 40; c.log.push('You beat the card sharp. He took it badly.'); c.gambleWon = true; } else { s.gold -= 20; c.log.push('The card sharp was not fair. You suspected as much.'); c.gambleWon = false; } } },
+  { id: 'stockpile', emoji: '📦', kind: 'special', name: 'Stockpile for winter', story: 'Fill every storehouse before the cold settles in.', arrows: 'Food ↑↑ · Materials ↑', fx: '+20 Food · +10 Materials',
+    apply(s, c) { s.food += 20; s.materials += 10; c.log.push('The storehouses are packed to the doors.'); } },
+  { id: 'bonfire', emoji: '🔥', kind: 'special', name: 'Light the great bonfire', story: 'The whole town around one fire, on the coldest night yet.', arrows: 'Materials ↓ · Harmony ↑↑↑', fx: '−15 Materials → Harmony +18',
+    ok: s => s.materials >= 15 || 'Needs 15 Materials',
+    apply(s, c) { s.materials -= 15; s.mood += 18; c.log.push(s.met.bard ? 'The whole town gathered at the bonfire. The bard came back to sing, and nobody wanted the night to end.' : 'The whole town gathered at the bonfire. For one night, nobody felt the cold.'); } },
+];
+Object.entries(BUILDINGS).forEach(([id, b]) => FOCUS.push({
+  id: 'build_' + id, emoji: '🔨', kind: 'build', name: 'Build: ' + b.name, story: b.story, arrows: `Materials ↓ · Gold ↓ · ${b.arrows}`, cost: b.cost,
+  fx: `−${b.cost.materials} Materials, −${b.cost.gold} Gold → ${b.desc} · worth ${BUILDING_VALUE} Wealth`,
+  when: s => !has(s, id),
+  ok: s => canAfford(s, b.cost) || `Needs ${b.cost.materials} Materials and ${b.cost.gold} Gold`,
+  apply(s, c) { pay(s, b.cost); s.buildings.push(id); c.log.push(`The ${b.name.toLowerCase()} is finished. ${b.story}`); },
+}));
+const FOCUS_BY_ID = Object.fromEntries(FOCUS.map(f => [f.id, f]));
+
+function focusOptions(s, day, orders) {
+  const st = stats(s, orders || DEFAULT_ORDERS);
+  const specials = (SCRIPT[day] && SCRIPT[day].specials) || [];
+  return FOCUS.filter(f => {
+    const isSpecial = f.kind === 'special' || f.special;
+    if (isSpecial) return specials.includes(f.id);
+    return !f.when || f.when(s);
+  }).map(f => { const ok = f.ok ? f.ok(s, st) : true; return { f, ok: ok === true, why: ok === true ? '' : ok }; });
+}
+
+function newSettlement(orders) {
+  const s = { ...SEASON.start, buildings: [], day: 1, scoutedUntil: 0, tools: false, well: false, met: {}, history: [] };
+  s.score = stats(s, orders || DEFAULT_ORDERS).score; s.ranked = s.score;
+  return s;
+}
+const cloneS = s => ({ ...s, buildings: s.buildings.slice(), history: s.history.slice(), met: { ...s.met } });
+
+// ---------- Resolve one day ----------
+// Returns story lines (log), number lines (ledger), and consequence lines (echo)
+function resolveDay(s0, orders, focusId, rng) {
+  const s = cloneS(s0), day = s.day, W = SCRIPT[day];
+  const log = [], ledger = [], echo = [];
+  const st0 = stats(s, orders);
+  const c = { day, orders, rng, log, prices: W.prices, weatherFood: WEATHER_FOOD[W.weather], toolBonus: s.tools ? 1.15 : 1, output: st0.output, eat: eatenPerDay(s, orders), tempPower: 0, raidAvoided: false, gambleWon: null };
+  const before = { food: s.food, gold: s.gold, materials: s.materials, pop: s.pop, harmony: st0.harmony, power: st0.power, wealth: st0.wealth, score: st0.score, ranked: s.ranked, foodDays: st0.foodDays };
+
+  // Choices that come back: the tinker you turned away on day 1
+  if (day === 2 && !s.met.tinker) s.met.tinker = 'refused';
+
+  // 1. The Focus
+  const f = FOCUS_BY_ID[focusId];
+  if (f) { f.apply(s, c); ledger.push(`Focus: ${f.name} (${f.fx}).`); }
+  else log.push('No focus today. The settlement ran on standing orders.');
+
+  // 2. Standing orders run everything else
+  const work = ORDER_FX.work.output[orders.work] * c.output;
+  const foodMade = r0((s.pop * 1.0 * work + (has(s, 'fields') ? 4 : 0) + (s.well ? 4 : 0)) * c.weatherFood * c.toolBonus);
+  const matMade = r0((s.pop * 0.35 * work + (has(s, 'sawmill') ? 6 : 0)) * c.toolBonus);
+  const taxGold = r0((s.pop * ORDER_FX.work.gold[orders.work] + (has(s, 'market') ? 6 : 0)) * c.output);
+  const eaten = r0(eatenPerDay(s, orders));
+  const upkeepGold = ORDER_FX.guard.gold[orders.guard], upkeepFood = ORDER_FX.guard.food[orders.guard];
+  s.food += foodMade - eaten - upkeepFood; s.materials += matMade; s.gold += taxGold - upkeepGold;
+  let newcomers = 0;
+  if (orders.gates === 0 && st0.harmony >= 40) newcomers = 2;
+  if (orders.gates === 1 && st0.harmony >= 55) newcomers = 1;
+  s.pop += newcomers;
+  ledger.push(`Standing orders: +${foodMade} Food made, −${eaten} eaten, +${matMade} Materials, +${taxGold} Gold in taxes. Harmony ${st0.harmony} gave output ×${st0.output.toFixed(2)}.`);
+  if (upkeepGold) ledger.push(`Militia upkeep: −${upkeepGold} Gold${upkeepFood ? `, −${upkeepFood} Food` : ''}.`);
+  if (newcomers && !(day % 2)) log.push(['A couple of families arrived at the open gate, looking for work.', 'A newcomer drifted in and asked for work.', 'Word of your settlement is spreading. More people arrived.'].at((day >> 1) % 3));
+  if (W.weather === 'storm') log.push('The storm flattened the fields. The farms made almost nothing today.');
+  if (W.weather === 'frost') log.push('Frost on the fields this morning. Winter is close.');
+
+  // 3. Consequences of earlier choices
+  if (day === 5 && s.met.refugees) { c.tempPower += 10; echo.push('The families you took in on day 3 know these raiders. They showed Rook exactly where they would strike.'); ledger.push('Refugees\' warning: Power +10 for the raid.'); }
+  if (day === 6 && s.met.tinker === 'hired') echo.push('The tinker from day 1 is riding with the caravan. He tells everyone you\'re honest, and the buyers pay you extra for it.');
+  if (day === 6 && s.met.tinker === 'refused') echo.push('The tinker you turned away on day 1 is riding with the caravan. He hasn\'t forgotten, and the buyers drive a harder bargain with you.');
+  if (day === 7 && s.met.travelers) { s.materials += 15; s.mood += 6; echo.push('The merchant family you sheltered in the storm came back with a cart of firewood, just in time for the cold.'); ledger.push('Travelers\' gift: +15 Materials, Harmony +6.'); }
+
+  // 4. Power protects your stores
+  const stNow = stats(s, orders), defense = stNow.power + c.tempPower;
+  if (W.event === 'raid' && !c.raidAvoided) {
+    const need = r0(W.raid * ORDER_FX.gates.raid[orders.gates]);
+    if (defense >= need) { s.mood += 8; s.training -= 5; log.push('The raiders hit the gates at dusk and broke against them. People cheered from the walls.'); }
+    else {
+      const frac = Math.min(0.5, (need - defense) / need + 0.15);
+      const g = r0(s.gold * frac), m = r0(s.materials * frac);
+      s.gold -= g; s.materials -= m; s.mood -= 10;
+      log.push(frac > 0.35 ? 'The raiders broke through and ransacked the storehouses. It will take a while to recover.' : 'The raiders got over the wall and grabbed what they could before you drove them off.');
+    }
+    ledger.push(`Raid: your Power ${defense} vs their ${need}${defense >= need ? ' (held)' : ' (broke through)'}.`);
+  } else if (defense < 25 && s.gold > 0) {
+    const g = r0(s.gold * 0.1); s.gold -= g;
+    if (g) { log.push('Thieves slipped past the thin patrols and lifted some coin.'); ledger.push(`Thieves (Power under 25): −${g} Gold.`); }
+  }
+  if (W.event === 'winter') {
+    if (s.food >= s.pop * 2) { s.mood += 10; log.push('The first winter night came, and the granary was full. Everyone ate well and slept warm.'); }
+    else { s.mood -= 10; log.push('The first winter night came, and the granary ran thin. People went to bed hungry.'); }
+    ledger.push(`Winter night: needed ${s.pop * 2} Food in store.`);
+  }
+
+  // 5. Hard times (never a game over)
+  if (s.food < 0) { const lost = Math.max(0, Math.min(s.pop - 4, Math.ceil(-s.food / 4))); s.pop -= lost; s.mood -= 10; s.food = 0; log.push(lost ? `The food ran out. ${lost === 1 ? 'A settler' : lost + ' settlers'} left to find a fuller table elsewhere.` : 'The food ran out. People are frightened.'); }
+  if (s.gold < 0) { s.gold = 0; s.mood -= 6; log.push('The treasury ran dry and wages went unpaid. People noticed.'); }
+  s.pop = Math.max(4, s.pop);
+  s.food = r0(s.food); s.gold = r0(s.gold); s.materials = Math.max(0, r0(s.materials));
+  if (!log.length) log.push('A quiet day.');
+
+  // 6. Recent events and training fade
+  s.mood = r0(s.mood * 0.7); s.training = Math.max(0, r0(s.training * 0.8));
+
+  // 7. Score, with the daily swing cap on the ranked score
+  const st1 = stats(s, orders);
+  s.score = st1.score;
+  s.ranked = r0(clamp(s.score, before.ranked * 0.75, before.ranked * 1.35));
+  s.history.push({ day, focus: focusId, ranked: s.ranked, gambleWon: c.gambleWon });
+  s.day = day + 1;
+  return { s, log, ledger, echo, before, after: { food: s.food, gold: s.gold, materials: s.materials, pop: s.pop, harmony: st1.harmony, power: st1.power, wealth: st1.wealth, foodDays: st1.foodDays }, gambleWon: c.gambleWon };
+}
+
+// ---------- The simulated crowd ----------
+const BOT_FIRST = ['Ash', 'Bram', 'Cora', 'Dell', 'Edda', 'Finn', 'Greta', 'Hale', 'Ines', 'Jory', 'Kit', 'Lark', 'Moss', 'Nell', 'Orrin', 'Pip', 'Quill', 'Rue', 'Sable', 'Tamsin', 'Ulla', 'Vale', 'Wren', 'Yara'];
+const BOT_PLACE = ['hollow', 'ford', 'stead', 'wick', 'mere', 'ridge', 'haven', 'brook', 'fell', 'gate'];
+function makeCrowd(n, seed) {
+  const rng = mulberry32(seed);
+  const pick = a => a[Math.floor(rng() * a.length)];
+  return Array.from({ length: n }, (_, i) => {
+    const o = {};
+    DIALS.forEach(d => { const x = rng(); o[d.id] = x < 0.2 ? 0 : x < 0.8 ? 1 : 2; });
+    return { name: pick(BOT_FIRST) + "'s " + pick(BOT_FIRST).toLowerCase().slice(0, 3) + pick(BOT_PLACE), orders: o, s: newSettlement(o), rng: mulberry32(seed * 31 + i * 977), skill: rng() };
+  });
+}
+function botChoose(bot) {
+  const opts = focusOptions(bot.s, bot.s.day, bot.orders).filter(x => x.ok);
+  const w = opts.map(({ f }) => {
+    let v = 1;
+    if (f.kind === 'special' || f.special) v += 1.5 * bot.skill + 0.5;
+    if (f.kind === 'build') v += 1.2 * bot.skill;
+    if (f.kind === 'gamble') v += 0.4;
+    if (f.id === 'scout' && bot.s.day <= 4) v += bot.skill;
+    if (f.id === 'drill' && bot.s.day === 4) v += 2 * bot.skill;
+    return v;
+  });
+  let x = bot.rng() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < opts.length; i++) { x -= w.at(i); if (x <= 0) return opts.at(i).f.id; }
+  return opts.length ? opts.at(-1).f.id : null;
+}
+function stepCrowd(crowd) {
+  const picks = {};
+  crowd.forEach(b => {
+    const id = botChoose(b);
+    const before = stats(b.s, b.orders).lasting;
+    const r = resolveDay(b.s, b.orders, id, b.rng);
+    b.s = r.s;
+    (picks[id] = picks[id] || { n: 0, gain: 0 }).n++;
+    picks[id].gain += (stats(b.s, b.orders).lasting - before) / Math.max(1, before);
+  });
+  return picks;
+}
+
+
+
+// ---------- The best move ----------
+// Tries every available Focus from the village's real state, plays the rest of the season out
+// several times, and ranks the options by where the village ends up. Same seeds for every option,
+// so differences come from the choice, not luck.
+function evaluateDay(s, orders, rollouts = 12) {
+  const opts = focusOptions(s, s.day, orders).filter(x => x.ok).map(x => x.f.id);
+  const pickRandom = (t, r) => { const o = focusOptions(t, t.day, orders).filter(x => x.ok); return o.length ? o[Math.floor(r() * o.length)].f.id : null; };
+  const value = {};
+  for (const id of opts) {
+    let tot = 0;
+    for (let k = 0; k < rollouts; k++) {
+      const r = mulberry32(s.day * 7919 + k * 104729 + 17);
+      let t = resolveDay(s, orders, id, r).s;
+      while (t.day <= SEASON.days) t = resolveDay(t, orders, pickRandom(t, r), r).s;
+      tot += t.score;
+    }
+    value[id] = tot / rollouts;
+  }
+  const ranked = Object.entries(value).sort((a, b) => b[1] - a[1]);
+  return { value, ranked, best: ranked.length ? ranked[0][0] : null, bestValue: ranked.length ? ranked[0][1] : 0 };
+}
+// 'best' = the top choice or within 2% of it, 'solid' = within 10%, 'weak' = below that
+function gradePick(ev, id) {
+  const v = ev.value[id];
+  if (v == null || !ev.bestValue) return 'weak';
+  const ratio = v / ev.bestValue;
+  return ratio >= 0.98 ? 'best' : ratio >= 0.9 ? 'solid' : 'weak';
+}
+
+if (typeof module !== 'undefined') module.exports = { evaluateDay, gradePick, SEASON, ORDER_FX, DIALS, DEFAULT_ORDERS, BUILDINGS, SCRIPT, FORECAST, FOCUS, FOCUS_BY_ID, MOODS, CAST, council, focusOptions, stats, newSettlement, resolveDay, makeCrowd, stepCrowd, mulberry32 };
+
+</script>
+<script>
+// ---------------------------------------------------------------------------
+// Theme packs: the same engine, different words and pixels
+// ---------------------------------------------------------------------------
+const THEMES = {
+  frontier: {
+    season: 'Season 1 · The Frontier',
+    res: { food: 'Food', gold: 'Gold', materials: 'Materials', pop: 'Settlers' },
+    words: [],
+    names: {}, dials: {}, headlines: {}, buildings: {},
+    sea: false,
+  },
+  fleet: {
+    season: 'Season 2 · The Fishing Fleet',
+    res: { food: 'Fish', gold: 'Coin', materials: 'Supplies', pop: 'Crew' },
+    words: [[/\bFood\b/g, 'Fish'], [/\bGold\b/g, 'Coin'], [/\bMaterials\b/g, 'Supplies'], [/\bTimber\b/g, 'Supply'], [/\bsettlers\b/g, 'crew'], [/\bsettler\b/g, 'crew hand'], [/\bHarmony\b/g, 'Spirits'], [/\bPower\b/g, 'Hull'], [/\bWealth\b/g, 'Catch'], [/\bsettlement\b/g, 'fleet'], [/\bRaiders\b/g, 'Pirates'], [/\braiders\b/g, 'pirates'], [/\bharvests?\b/g, 'hauls'], [/\bfields\b/g, 'nets'], [/\bFarms\b/g, 'Nets'], [/\bfarms\b/g, 'nets'], [/\bmilitia\b/g, 'deck watch'], [/\bvalley\b/g, 'harbor'], [/\btown\b/g, 'harbor'], [/\bgates\b/g, 'hulls'], [/\bwalls\b/g, 'rails'], [/\bthe farmer\b/g, 'the net-mender'], [/\bgranary\b/g, 'fish hold'], [/\bcrops?\b/g, 'catch']],
+    names: { harvest: 'Haul the nets', trade: 'Sell at the fish market', drill: 'Drill the crew', festival: 'Throw a deck party', scout: 'Send the lookout aloft', welcome: 'Sign on new hands', prospect: 'Dive for pearls', banditcamp: 'Board a pirate sloop', fair: 'Host a harbor fair', tavernnight: 'Galley feast', walls: 'Batten down the hatches', tinker: 'Hire the stranded shipwright', elk: 'Chase the herring run', bard: 'Let the shanty singer aboard', barge: 'Buy cheap rope and tar', well: 'Drill for fresh water', refugees: 'Rescue shipwreck survivors', shelter: 'Tow in a storm-hit boat', salvage: 'Salvage the storm wreckage', mercs: 'Hire privateers for the day', parley: 'Parley with the pirates', caravan: 'Trade with the merchant ship', cards: "Dice with the merchant's mate", stockpile: 'Salt fish for winter', bonfire: 'Light the harbor beacon' },
+    buildings: { fields: 'Net racks', sawmill: 'Ropewalk', market: 'Fish market', tavern: 'Galley', palisade: 'Breakwater' },
+    dials: { work: 'Shifts', table: 'Galley', gates: 'Hiring', guard: 'Deck watch' },
+    headlines: { 1: 'Calm seas. Your first morning in harbor.', 2: 'Supply merchants are paying well today.', 3: 'Soft rain. The fish are biting.', 4: 'A storm rolls in off the sea.', 5: 'Black sails on the horizon. Pirates.', 6: 'A merchant ship drops anchor, holds full.', 7: 'First frost. Tonight is the first winter night.' },
+    sea: true,
+  },
+};
+let theme = 'frontier';
+const TH = () => THEMES[theme];
+const T = str => TH().words.reduce((acc, [re, w]) => acc.replace(re, w), String(str));
+const focusName = f => f.kind === 'build' ? 'Build: ' + bName(f.id.slice(6)) : (TH().names[f.id] || f.name);
+const bName = id => TH().buildings[id] || BUILDINGS[id].name;
+const dialName = d => TH().dials[d.id] || d.name;
+
+// ---------------------------------------------------------------------------
+// Game state
+// ---------------------------------------------------------------------------
+let G;
+function newGame(seed) {
+  G = { seed, s: newSettlement(DEFAULT_ORDERS), orders: { ...DEFAULT_ORDERS }, morning: { ...DEFAULT_ORDERS }, choice: null, crowd: makeCrowd(400, seed), picksByDay: {}, grades: {}, results: [], playerRng: mulberry32(seed * 7919 + 13) };
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Pixel diorama
+// ---------------------------------------------------------------------------
+const cv = document.getElementById('diorama'), ctx = cv.getContext('2d');
+const OX = 104, OY = 28, N = 9;
+const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+const iso = (gx, gy) => [OX + (gx - gy) * 8, OY + (gx + gy) * 4];
+function diamond(cx, cy, hw, hh, c) { for (let dy = -hh; dy < hh; dy++) { const t = dy < 0 ? (hh + dy + 1) / hh : (hh - dy) / hh; const w = Math.round(hw * t); if (w > 0) px(cx - w, cy + dy, 2 * w, 1, c); } }
+function cube(cx, cy, a, h, top, left, right) {
+  for (let i = 0; i < a; i++) { px(cx - a + i, cy + (i >> 1) - h + 1, 1, h, left); px(cx + i, cy + ((a - i) >> 1) - h + 1, 1, h, right); }
+  diamond(cx, cy - h + 1, a, a >> 1, top);
+}
+function roof(cx, cy, a, c1, c2) { for (let k = 0; k * 2 < a; k++) diamond(cx, cy - k * 1.5, a - 2 * k, Math.max(1, (a - 2 * k) >> 1), k % 2 ? c2 : c1); }
+const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) ^ (a * b); h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; };
+
+const PAL = {
+  frontier: { g1: '#5aa653', g2: '#67b55c', edge: '#3d7a3a', plaza: '#c9a46a', plaza2: '#b8935c', wallT: '#d8a56a', wallL: '#a06a3a', wallR: '#b97d48', roof1: '#c4473a', roof2: '#e05a4a', field: '#e3c45a', furrow: '#b49332', tree1: '#2f7a3c', tree2: '#3f9a4a', trunk: '#6b4226', post: '#7a5230', postT: '#a8743f', sky1: '#28344f', sky2: '#3a4466' },
+  fleet:    { g1: '#2f6fa3', g2: '#3a7fb5', edge: '#245a86', plaza: '#e2cf96', plaza2: '#d2bd80', wallT: '#e9e4d6', wallL: '#a89f8a', wallR: '#c7bea8', roof1: '#3b6d9a', roof2: '#4f86b8', field: '#9b7748', furrow: '#6f5232', tree1: '#e9e4d6', tree2: '#ffffff', trunk: '#6b4226', post: '#d64545', postT: '#ffffff', sky1: '#1f3550', sky2: '#2e4a6d' },
+};
+const HUTS = [[3, 3], [5, 3], [3, 5], [5, 5], [4, 2], [2, 4], [6, 4], [4, 6], [2, 2], [6, 6], [2, 6], [6, 2], [3, 1], [1, 3], [5, 7], [7, 5]];
+const SPOT = { market: [7, 2], tavern: [1, 6], sawmill: [2, 7], fields: [[6, 7], [7, 7], [6, 8], [7, 8]] };
+
+function drawDiorama() {
+  const s = G.s, P = PAL[theme], sea = TH().sea;
+  const weather = (SCRIPT[Math.min(s.day, SEASON.days)] || {}).weather || 'clear';
+  // sky band
+  for (let y = 0; y < cv.height; y++) px(0, y, cv.width, 1, P.sky2);
+  cv.parentElement.style.background = P.sky2;
+  if (weather === 'storm') { ctx.fillStyle = 'rgba(10,10,25,.35)'; ctx.fillRect(0, 0, cv.width, cv.height); }
+  // stars / sun hint
+  for (let i = 0; i < 18; i++) px(hash(i, 3) * cv.width, hash(i, 9) * 30, 1, 1, weather === 'clear' ? '#f4ecda' : '#55607d');
+  // ground slab edge
+  for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
+    const [cx, cy] = iso(gx, gy);
+    if (gx === N - 1 || gy === N - 1) { cube(cx, cy + 4, 8, 4, 'rgba(0,0,0,0)', P.edge, P.edge); }
+  }
+  // tiles
+  const plazaTiles = new Set(['4,4', '3,4', '4,3', '5,4', '4,5']);
+  for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
+    const [cx, cy] = iso(gx, gy);
+    let c = (gx + gy) % 2 ? P.g1 : P.g2;
+    if (sea && gx >= 2 && gx <= 6 && gy >= 2 && gy <= 6) c = (gx + gy) % 2 ? P.plaza : P.plaza2; // island
+    if (!sea && plazaTiles.has(gx + ',' + gy)) c = (gx + gy) % 2 ? P.plaza : P.plaza2;
+    diamond(cx, cy, 8, 4, c);
+    if (sea && !(gx >= 2 && gx <= 6 && gy >= 2 && gy <= 6) && hash(gx, gy) > .6) px(cx - 2 + hash(gy, gx) * 4, cy, 3, 1, '#8cc6ea');
+    if (weather === 'frost' && hash(gx * 3, gy * 5) > .35) { px(cx - 3, cy - 1, 1, 1, '#ffffff'); px(cx + 2, cy + 1, 1, 1, '#e8f4ff'); }
+  }
+  // objects, back to front
+  const objs = [];
+  const huts = Math.min(HUTS.length, Math.ceil(s.pop / 2.5));
+  HUTS.slice(0, huts).forEach(([gx, gy], i) => objs.push({ gx, gy, draw: (cx, cy) => sea ? boat(cx, cy, P, i) : hut(cx, cy, P, i) }));
+  if (s.buildings.includes('fields')) SPOT.fields.forEach(([gx, gy]) => objs.push({ gx, gy, flat: true, draw: (cx, cy) => sea ? netRack(cx, cy, P) : field(cx, cy, P) }));
+  else objs.push({ gx: 7, gy: 8, flat: true, draw: (cx, cy) => sea ? netRack(cx, cy, P) : field(cx, cy, P) });
+  if (s.buildings.includes('market')) objs.push({ gx: SPOT.market[0], gy: SPOT.market[1], draw: (cx, cy) => tent(cx, cy, sea ? '#3b6d9a' : '#c4473a', '#f4ecda') });
+  if (s.buildings.includes('tavern')) objs.push({ gx: SPOT.tavern[0], gy: SPOT.tavern[1], draw: (cx, cy) => sea ? bigBoat(cx, cy, P) : tavern(cx, cy, P) });
+  if (s.buildings.includes('sawmill')) objs.push({ gx: SPOT.sawmill[0], gy: SPOT.sawmill[1], draw: (cx, cy) => sawmill(cx, cy, P) });
+  if (s.well) objs.push({ gx: 4, gy: 4, draw: (cx, cy) => { cube(cx, cy, 3, 3, '#5c87b8', '#7d7d7d', '#9a9a9a'); } });
+  if (s.history.some(h => h.focus === 'bonfire')) objs.push({ gx: 4, gy: 3, draw: (cx, cy) => bonfire(cx, cy) });
+  // trees / buoys on free edge tiles
+  const used = new Set(objs.map(o => o.gx + ',' + o.gy));
+  for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
+    const k = gx + ',' + gy;
+    if (used.has(k) || plazaTiles.has(k)) continue;
+    const edgeish = gx < 1 || gy < 1 || gx > 7 || gy > 7 || (gx === 0 || gy === 0);
+    if ((edgeish && hash(gx, gy) > .45) || hash(gy * 2, gx * 3) > .93) objs.push({ gx, gy, draw: (cx, cy) => sea ? rock(cx, cy, gx, gy) : tree(cx, cy, P, gx, gy) });
+  }
+  // palisade / breakwater posts on the perimeter
+  if (s.buildings.includes('palisade')) for (let i = 0; i < N; i++) { [[i, 0], [0, i], [i, N - 1], [N - 1, i]].forEach(([gx, gy]) => objs.push({ gx, gy, z: .5, draw: (cx, cy) => post(cx, cy, P) })); }
+  // people
+  const folk = Math.min(14, Math.round(s.pop / 2));
+  for (let i = 0; i < folk; i++) { const gx = 3 + hash(i, 1) * 3, gy = 3 + hash(i, 2) * 3; objs.push({ gx, gy, z: .3, draw: (cx, cy) => person(cx, cy, i) }); }
+  // banner when strong
+  if (stats(s, G.morning).power >= 45) objs.push({ gx: 4, gy: 7, draw: (cx, cy) => banner(cx, cy, sea) });
+  objs.sort((a, b) => (a.gx + a.gy + (a.z || 0) - (a.flat ? .5 : 0)) - (b.gx + b.gy + (b.z || 0) - (b.flat ? .5 : 0)));
+  objs.forEach(o => { const [cx, cy] = iso(o.gx, o.gy); o.draw(cx, cy); });
+  // weather overlay
+  if (weather === 'rain' || weather === 'storm') for (let i = 0; i < (weather === 'storm' ? 140 : 70); i++) { const x = hash(i, 11) * cv.width, y = hash(i, 17) * cv.height; px(x, y, 1, 3, weather === 'storm' ? '#a9c7ff' : '#8fb4e8'); }
+  if (weather === 'storm') { px(150, 6, 1, 6, '#fff4a8'); px(151, 12, 1, 5, '#fff4a8'); px(150, 17, 1, 4, '#fff4a8'); }
+  if (weather === 'frost') for (let i = 0; i < 40; i++) px(hash(i, 23) * cv.width, hash(i, 29) * cv.height, 1, 1, '#ffffff');
+}
+function hut(cx, cy, P, i) { cube(cx, cy + 1, 5, 5, P.wallT, P.wallL, P.wallR); roof(cx, cy - 4, 6, P.roof1, P.roof2); px(cx - 3, cy + 1, 1, 2, '#3a2412'); if (i % 3 === 0) px(cx + 2, cy - 1, 1, 1, '#ffe08a'); }
+function boat(cx, cy, P, i) { cube(cx, cy + 2, 5, 2, '#8a5a2f', '#5e3a1c', '#76482a'); px(cx, cy - 8, 1, 9, '#4a3020'); for (let k = 0; k < 6; k++) px(cx + 1, cy - 8 + k, 4 - (k >> 1), 1, i % 2 ? '#f4ecda' : '#e9d3a8'); }
+function bigBoat(cx, cy, P) { cube(cx, cy + 2, 7, 3, '#8a5a2f', '#5e3a1c', '#76482a'); px(cx - 2, cy - 12, 1, 13, '#4a3020'); px(cx + 2, cy - 10, 1, 11, '#4a3020'); for (let k = 0; k < 8; k++) { px(cx - 1, cy - 12 + k, 5 - (k >> 1), 1, '#f4ecda'); } px(cx - 2, cy - 14, 3, 2, '#d64545'); }
+function field(cx, cy, P) { diamond(cx, cy, 8, 4, P.field); for (let k = -3; k < 4; k += 2) px(cx - 6 + Math.abs(k), cy + k, 12 - 2 * Math.abs(k), 1, P.furrow); }
+function netRack(cx, cy, P) { diamond(cx, cy, 8, 4, P.field); px(cx - 5, cy - 6, 1, 6, P.furrow); px(cx + 5, cy - 6, 1, 6, P.furrow); for (let k = 0; k < 4; k++) for (let x = -4; x < 5; x += 2) px(cx + x, cy - 5 + k, 1, 1, '#d9d2b8'); }
+function tent(cx, cy, c1, c2) { cube(cx, cy + 1, 6, 3, c2, '#a99a7a', '#c7b896'); for (let k = 0; k < 5; k++) diamond(cx, cy - 2 - k, 7 - k, Math.max(1, (7 - k) >> 1), k % 2 ? c2 : c1); px(cx, cy - 9, 1, 3, '#4a3020'); px(cx + 1, cy - 9, 2, 1, '#f2c14e'); }
+function tavern(cx, cy, P) { cube(cx, cy + 1, 7, 8, P.wallT, P.wallL, P.wallR); roof(cx, cy - 7, 8, '#7a3b8f', '#9b4fb3'); px(cx + 3, cy - 3, 2, 2, '#ffe08a'); px(cx - 5, cy - 2, 2, 2, '#ffe08a'); px(cx + 6, cy - 6, 3, 2, '#f2c14e'); }
+function sawmill(cx, cy, P) { cube(cx, cy + 1, 6, 5, '#9a7a55', '#6e5236', '#87664a'); px(cx + 4, cy - 1, 4, 2, '#c99a62'); px(cx + 4, cy + 1, 4, 2, '#b07f4a'); px(cx - 2, cy - 8, 2, 4, '#5a5a5a'); }
+function tree(cx, cy, P, gx, gy) { const h = 3 + Math.floor(hash(gx, gy) * 3); px(cx, cy - h, 1, h + 1, P.trunk); diamond(cx, cy - h - 2, 4, 3, P.tree1); diamond(cx, cy - h - 4, 3, 2, P.tree2); }
+function rock(cx, cy, gx, gy) { if (hash(gx, gy) > .5) { px(cx - 1, cy - 4, 1, 5, '#d64545'); px(cx - 1, cy - 5, 2, 1, '#ffffff'); } else cube(cx, cy + 1, 3, 2, '#9aa3ad', '#6c747d', '#838c96'); }
+function post(cx, cy, P) { px(cx, cy - 5, 2, 6, P.post); px(cx, cy - 6, 2, 1, P.postT); }
+function person(cx, cy, i) { const cols = ['#ff8fab', '#7cc6f5', '#f2c14e', '#8fd16a', '#f4ecda']; px(cx, cy - 3, 1, 1, '#f1c9a0'); px(cx, cy - 2, 1, 2, cols.at(i % cols.length)); }
+function bonfire(cx, cy) { px(cx - 2, cy, 5, 1, '#6b4226'); px(cx - 1, cy - 3, 3, 3, '#ff9a3c'); px(cx, cy - 5, 1, 2, '#ffd36b'); }
+function banner(cx, cy, sea) { px(cx, cy - 12, 1, 13, '#4a3020'); for (let k = 0; k < 4; k++) px(cx + 1, cy - 12 + k, 5, 1, sea ? '#d64545' : '#c4473a'); px(cx + 2, cy - 11, 2, 2, '#f2c14e'); }
+
+// ---------------------------------------------------------------------------
+// Rendering the page
+// ---------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = n => n.toLocaleString('en-US');
+
+function rankInfo(s) {
+  const all = G.crowd.map(b => b.s.ranked);
+  const better = all.filter(v => v > s.ranked).length;
+  const total = all.length + 1;
+  return { rank: better + 1, total, top: Math.max(1, Math.round((better + 1) / total * 100)) };
+}
+const pips = (v, max, color) => { const n = Math.max(1, Math.min(10, Math.round(v / max * 10))); return Array.from({ length: 10 }, (_, i) => `<i style="${i < n ? `background:${color}` : ''}"></i>`).join(''); };
+function moodWhy(kind, st, s) {
+  // One plain sentence on the biggest reason, from the hidden parts
+  const parts = kind === 'harmony' ? st.harmonyParts.slice(1) : st.powerParts;
+  const big = parts.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).at(0);
+  if (!big) return '';
+  const lbl = big[0].replace(/\s*\(.*\)/, '');
+  return (big[1] >= 0 ? 'Helped most by: ' : 'Held back by: ') + lbl.toLowerCase();
+}
+
+let buildOpen = false, voiceAll = false;
+const ORDER_WORDS = { work: ['Easy work', 'Steady work', 'Hard work'], table: ['Lean table', 'Normal table', 'Feasts'], gates: ['Open gates', 'Watched gates', 'Shut gates'], guard: ['No guard', 'Patrols', 'Garrison'] };
+const SQ = { best: '🟩', solid: '🟨', weak: '🟥' };
+const gridLine = () => Array.from({ length: SEASON.days }, (_, i) => G.grades[i + 1] ? SQ[G.grades[i + 1].grade] : '⬛').join('');
+
+function render() {
+  const s = G.s, day = Math.min(s.day, SEASON.days), R = TH().res;
+  // Everything on screen reflects how the day started; dial changes only show up after you end the day
+  const st = stats(s, G.morning), ri = rankInfo(s);
+  $('seasonName').textContent = TH().season + ' · 7-day prototype';
+  $('dayNum').textContent = 'DAY ' + day;
+  $('dayOf').textContent = `OF ${SEASON.days} · TOP ${ri.top}%`;
+  $('grid').textContent = gridLine();
+  drawDiorama();
+  $('hud').innerHTML = `<span>🪙 ${R.gold} <b>${fmt(s.gold)}</b></span><span>🪵 ${R.materials} <b>${fmt(s.materials)}</b></span><span>👥 ${R.pop} <b>${s.pop}</b></span><span class="sep"></span><span>🏗 ${s.buildings.length ? s.buildings.map(bName).join(', ') : 'No buildings yet'}</span>`;
+
+  // Moods: one word each; the reason is a tooltip
+  $('moods').innerHTML = [
+    [T('Harmony'), MOODS.harmony(st.harmony), 'var(--harmony)', st.harmony, 100, moodWhy('harmony', st, s)],
+    [T('Power'), MOODS.power(st.power), 'var(--power)', st.power, 100, moodWhy('power', st, s)],
+    [T('Wealth'), MOODS.wealth(st.wealth), 'var(--gold)', st.wealth, 400, 'Your treasury, stores and buildings'],
+    [R.food, MOODS.food(st.foodDays), 'var(--good)', Math.min(st.foodDays, 8), 8, st.foodDays >= 1 ? `About ${Math.floor(st.foodDays)} days left` : 'Less than a day left'],
+  ].map(([l, w, c, v, max, why]) => `<div class="mood" title="${esc(T(why))}"><span class="lbl">${esc(l.toUpperCase())}</span><span class="word" style="color:${c}">${esc(T(w))}</span><span class="pips">${pips(v, max, c)}</span></div>`).join('');
+
+  // One voice from the council (the most urgent); the rest on request
+  const voices = council(s, G.morning);
+  const shown = voiceAll ? voices : voices.slice(0, 1);
+  $('council').innerHTML = shown.map((c, i) => `<span class="face" aria-hidden="true">${c.face}</span><p><b>${esc(c.name)}:</b> ${esc(T(c.line))}${i === shown.length - 1 && voices.length > 1 ? ` <button class="more" id="voiceMore">${voiceAll ? 'Less' : `+${voices.length - 1} more`}</button>` : ''}</p>`).join('');
+  if ($('voiceMore')) $('voiceMore').onclick = () => { voiceAll = !voiceAll; render(); };
+
+  // Coming up: a strip of short chips
+  const horizon = Math.max(day + 2, s.scoutedUntil);
+  const icons = { weather: '🌦', market: '📈', threat: '⚔️', opportunity: '✨' };
+  $('board').innerHTML = FORECAST.filter(f => f.day >= day && f.day <= horizon).map(f => {
+    const known = f.day === day || f.day <= s.scoutedUntil;
+    const label = f.day === day ? 'TODAY' : f.day === day + 1 ? 'TOMORROW' : 'DAY ' + f.day;
+    return `<div class="chipday${f.day === day ? ' today' : ''}" title="${esc(T(known ? f.detail : f.text))}"><span class="d">${label} ${icons[f.kind]}</span><span class="t">${esc(T(known ? f.detail : f.text))}</span><span class="c${known ? ' sure' : ''}">${known ? 'certain' : esc(f.cert)}</span></div>`;
+  }).join('');
+
+  // Headline + orders summary (dials open on request)
+  $('headline').textContent = TH().headlines[day] || T(SCRIPT[day].headline);
+  $('ordersSummary').textContent = DIALS.map(d => ORDER_WORDS[d.id][G.orders[d.id]]).join(' · ');
+  $('dials').innerHTML = DIALS.map(d => `<div class="dial"><div class="nm"><span>${esc(dialName(d))}</span></div>
+    <div class="seg" role="group" aria-label="${esc(dialName(d))}">${d.opts.map((o, i) => `<button id="dial-${d.id}-${i}" data-dial="${d.id}" data-i="${i}" aria-pressed="${G.orders[d.id] === i}">${o}</button>`).join('')}</div>
+    <span class="arrows">${esc(T(d.arrows[G.orders[d.id]]))}</span></div>`).join('');
+  $('dials').querySelectorAll('[data-dial]').forEach(b => b.onclick = () => { G.orders[b.dataset.dial] = +b.dataset.i; render(); });
+
+  // Focus tiles: name + arrows only; builds folded into one tile
+  const opts = focusOptions(s, day, G.morning);
+  const order = { special: 0, gamble: 1, unlock: 2, core: 3, build: 4 };
+  opts.sort((a, b) => (order[a.f.special ? 'special' : a.f.kind] - order[b.f.special ? 'special' : b.f.kind]));
+  const builds = opts.filter(o => o.f.kind === 'build'), rest = opts.filter(o => o.f.kind !== 'build');
+  if (G.choice && FOCUS_BY_ID[G.choice] && FOCUS_BY_ID[G.choice].kind === 'build') buildOpen = true;
+  const tile = ({ f, ok }) => {
+    const flag = f.kind === 'gamble' ? (f.special ? 'TODAY 🎲' : '🎲') : f.kind === 'special' ? 'TODAY' : f.kind === 'unlock' ? 'NEW' : '';
+    const cls = f.kind === 'gamble' ? 'gamble' : f.kind === 'special' ? 'special' : f.kind === 'unlock' ? 'unlock' : '';
+    return `<button class="tile" id="focus-${f.id}" data-f="${f.id}" aria-pressed="${G.choice === f.id}" ${ok ? '' : 'aria-disabled="true"'}>
+      ${flag ? `<span class="flag ${cls}">${flag}</span>` : ''}
+      <span class="nm">${f.emoji} ${esc(focusName(f).replace(/^Build: /, ''))}</span>
+      <span class="ar">${esc(T(f.arrows.replace(/^Materials ↓ · Gold ↓ · /, '')))}</span></button>`;
+  };
+  const affordable = builds.filter(b => b.ok).length;
+  $('cards').innerHTML = rest.map(tile).join('') +
+    (builds.length ? `<button class="tile group" id="buildGroup" aria-expanded="${buildOpen}"><span class="nm">🔨 Build something</span><span class="ar">${affordable ? `${affordable} you can afford` : 'Nothing affordable yet'} · ${buildOpen ? 'hide' : 'show'}</span></button>` : '') +
+    (buildOpen ? builds.map(tile).join('') : '');
+  $('cards').querySelectorAll('[data-f]').forEach(b => b.onclick = () => { G.choice = b.dataset.f; render(); });
+  if ($('buildGroup')) $('buildGroup').onclick = () => { buildOpen = !buildOpen; render(); };
+
+  // The detail line for the chosen tile
+  const sel = G.choice && opts.find(o => o.f.id === G.choice);
+  if (sel) {
+    const f = sel.f, cost = f.cost ? ` Costs ${f.cost.materials} ${R.materials} and ${f.cost.gold} ${R.gold}.` : '';
+    $('detail').innerHTML = `<p><span class="dn">${f.emoji} ${esc(focusName(f))}.</span> ${esc(T(f.story + cost))}</p>${f.odds ? `<p class="odds">🎲 ${esc(T(f.odds))}</p>` : ''}${sel.ok ? '' : `<p class="why">${esc(T(sel.why))}</p>`}`;
+  } else $('detail').innerHTML = '<p class="placeholder">Pick a Focus for today. Your orders run everything else.</p>';
+  $('endDay').disabled = !sel || !sel.ok || s.day > SEASON.days;
+  $('endDay').textContent = day === SEASON.days ? 'End the season' : 'End day ' + day;
+
+  renderLedger(st, opts);
+}
+
+function renderLedger(st, opts) {
+  const s = G.s, ri = rankInfo(s);
+  const parts = list => `<ul class="parts">${list.map(([l, v], i) => `<li><span>${esc(T(l))}</span><b class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 && i > 0 ? '+' : ''}${fmt(v)}</b></li>`).join('')}</ul>`;
+  $('scores').innerHTML = [
+    ['Wealth', st.wealth, 'var(--gold)', Math.min(100, st.wealth / 6), 'Everything you own', st.wealthParts],
+    ['Harmony', st.harmony, 'var(--harmony)', st.harmony, `Output ×${st.output.toFixed(2)}`, st.harmonyParts],
+    ['Power', st.power, 'var(--power)', st.power, st.power < 25 ? 'Under 25: thieves take Gold daily' : 'Protects your stores', st.powerParts],
+  ].map(([l, v, c, w, sub, pl]) => `<div class="score"><span class="lbl">${T(l).toUpperCase()}</span><span class="val" style="color:${c}">${fmt(v)}</span><span class="bar"><i style="width:${w}%;background:${c}"></i></span><span class="sub">${esc(T(sub))}</span>${parts(pl)}</div>`).join('') +
+    `<div class="score total"><span class="lbl">SCORE · RANK</span><span class="val">${fmt(s.ranked)}</span><span class="sub">#${ri.rank} of ${ri.total} · top ${ri.top}%</span><ul class="parts"><li><span>${esc(T('Wealth'))} × ${esc(T('Harmony'))} × ${esc(T('Power'))} ÷ 1000</span></li><li><span>As of this morning</span><b>${fmt(st.score)}</b></li><li><span>Temporary boosts count half toward the score</span></li><li><span>Ranked score moves at most −25% / +35% a day</span></li></ul></div>`;
+  $('explain').innerHTML = T(`<b>How it fits together:</b> resources feed the three scores. Food keeps Harmony up, and Harmony makes everyone work harder. Gold, buildings and your stores are Wealth. Settlers and the militia are Power, and Power protects what you own. Recent events and training are temporary, so they count half toward your score.`);
+  $('ledgerDials').innerHTML = `<h4>Standing orders, exactly</h4><ul>${DIALS.map(d => `<li>${esc(dialName(d))} · ${d.opts[G.orders[d.id]]}: ${esc(T(d.hint[G.orders[d.id]]))}</li>`).join('')}</ul>`;
+  $('ledgerFocus').innerHTML = `<h4>Today's Focus options, exactly</h4><ul>${opts.map(({ f }) => `<li>${esc(focusName(f))}: ${esc(T(f.fx))}</li>`).join('')}</ul>`;
+}
+
+// ---------------------------------------------------------------------------
+// Ending a day
+// ---------------------------------------------------------------------------
+function endDay() {
+  if (!G.choice) return;
+  const day = G.s.day;
+  const ev = evaluateDay(G.s, G.orders);
+  G.grades[day] = { grade: gradePick(ev, G.choice), best: ev.best, runnerUp: ev.ranked.length > 1 ? ev.ranked[1][0] : null };
+  const r = resolveDay(G.s, G.orders, G.choice, G.playerRng);
+  G.picksByDay[day] = stepCrowd(G.crowd);
+  G.s = r.s;
+  G.morning = { ...G.orders };
+  const picked = G.choice;
+  G.choice = null;
+  render();
+  showResults(day, picked, r);
+}
+
+function showResults(day, picked, r) {
+  const s = G.s, b = r.before, a = r.after, R = TH().res;
+  const shift = (label, fn, x, y) => { const p = fn(x), q = fn(y); return p === q ? '' : `<span class="shift ${y > x ? 'up' : 'down'}">${esc(label)}: ${esc(T(p))} → ${esc(T(q))}</span>`; };
+  const count = (label, x, y) => { const v = y - x; return v === 0 ? '' : `<span class="shift ${v > 0 ? 'up' : 'down'}">${esc(label)} ${v > 0 ? '+' : ''}${v}</span>`; };
+  const shifts = shift(T('Harmony'), MOODS.harmony, b.harmony, a.harmony) + shift(T('Power'), MOODS.power, b.power, a.power) + shift(T('Wealth'), MOODS.wealth, b.wealth, a.wealth) + shift(R.food, MOODS.food, b.foodDays, a.foodDays) + count(R.gold, b.gold, a.gold) + count(R.materials, b.materials, a.materials) + count(R.pop, b.pop, a.pop);
+  const picks = G.picksByDay[day];
+  const total = Object.values(picks).reduce((acc, v) => acc + v.n, 0);
+  const rows = Object.entries(picks).sort((x, y) => y[1].n - x[1].n);
+  const top = rows.slice(0, 3);
+  if (!top.some(([id]) => id === picked) && picks[picked]) top.push(rows.find(([id]) => id === picked));
+  const best = rows.filter(([, v]) => v.n >= 12).sort((x, y) => y[1].gain / y[1].n - x[1].gain / x[1].n).at(0);
+  const myGain = (s.ranked - b.ranked) / Math.max(1, b.ranked);
+  const pctMine = picks[picked] ? Math.round(picks[picked].n / total * 100) : 0;
+  const crowdHtml = top.map(([id, v]) => {
+    const p = Math.round(v.n / total * 100), g = v.gain / v.n * 100;
+    return `<div class="cbar${id === picked ? ' mine' : ''}"><span class="n">${FOCUS_BY_ID[id].emoji} ${esc(focusName(FOCUS_BY_ID[id]))}${id === picked ? ' (you)' : ''}</span><span class="pc">${p}%</span><span class="g" style="color:${g >= 0 ? 'var(--good)' : 'var(--bad)'}">${g >= 0 ? '▲' : '▼'}</span><span class="track"><i style="width:${p}%"></i></span></div>`;
+  }).join('');
+  const gd = G.grades[day], bf = FOCUS_BY_ID[gd.best];
+  const pctBest = picks[gd.best] ? Math.round(picks[gd.best].n / total * 100) : 0;
+  const verdict = { best: 'You found it.', solid: 'A good call, but not the best one.', weak: 'You missed this one.' }[gd.grade];
+  const bestBox = `<div class="bestmove ${gd.grade}"><span class="sq">${SQ[gd.grade]}</span><div><p class="bm-lbl">BEST MOVE FOR YOUR VILLAGE</p><p><b>${bf.emoji} ${esc(focusName(bf))}</b>. ${pctBest <= 1 ? 'Almost nobody' : pctBest + '% of villages'} chose it.</p><p class="bm-you">${verdict}${gd.grade !== 'best' ? ` You picked ${esc(focusName(FOCUS_BY_ID[picked]))}.` : ''}</p></div></div>`;
+  const insight = `${pctMine <= 8 ? `Only ${pctMine}% made the same call as you.` : `${pctMine}% made the same call as you.`}`;
+  const ri = rankInfo(s), last = day === SEASON.days;
+  const f = FOCUS_BY_ID[picked];
+  $('sheet').innerHTML = `<h3 id="sheetTitle">${last ? 'The season ends' : 'Day ' + day}</h3>
+    ${bestBox}
+    <div class="storybox">${r.log.slice(0, 3).map(l => `<p>${esc(T(l))}</p>`).join('')}</div>
+    ${r.echo.map(e => `<p class="echo"><b>YOUR PAST CATCHES UP</b>${esc(T(e))}</p>`).join('')}
+    <div class="shifts">${shifts}</div>
+    <div class="rankline"><span>Score <b>${fmt(b.ranked)} → ${fmt(s.ranked)}</b> (${myGain >= 0 ? '+' : ''}${(myGain * 100).toFixed(0)}%)</span><span>Rank <b>#${ri.rank}</b> of ${ri.total} · top ${ri.top}%</span></div>
+    <h4>Everyone else <small class="gridsmall">${gridLine()}</small></h4>
+    <div class="crowd">${crowdHtml}</div>
+    ${insight && picked !== gd.best ? `<p class="insight">${insight}</p>` : ''}
+    <details class="mini"><summary>Today's numbers</summary><ul>${r.ledger.map(l => `<li>${esc(T(l))}</li>`).join('')}<li>Harmony ${b.harmony} → ${a.harmony}, Power ${b.power} → ${a.power}, Wealth ${b.wealth} → ${a.wealth}</li></ul></details>
+    ${last ? seasonSummary() : `<div class="row2"><button class="big" id="nextDay">Begin day ${day + 1}</button></div>`}`;
+  $('overlay').hidden = false;
+  if (last) wireSummary(); else $('nextDay').onclick = () => { $('overlay').hidden = true; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  $('overlay').scrollTop = 0;
+  ($('nextDay') || $('copyShare')).focus({ preventScroll: true });
+}
+
+function seasonSummary() {
+  const s = G.s, ri = rankInfo(s), st = stats(s, G.orders);
+  const side = fn => 1 + G.crowd.filter(b => fn(stats(b.s, b.orders)) > fn(st)).length;
+  const lb = [...G.crowd.map(b => ({ name: b.name, v: b.s.ranked })), { name: 'You', v: s.ranked, me: true }].sort((x, y) => y.v - x.v);
+  const myIdx = lb.findIndex(x => x.me);
+  const shown = lb.slice(0, 5).concat(myIdx >= 5 ? [lb.at(myIdx)] : []);
+  const counts = { best: 0, solid: 0, weak: 0 };
+  Object.values(G.grades).forEach(g => counts[g.grade]++);
+  return `<div class="seasongrid"><p class="bm-lbl">YOUR SEASON</p><p class="bigrid">${gridLine()}</p><p class="bm-you">${counts.best} best move${counts.best === 1 ? '' : 's'} · ${counts.solid} good · ${counts.weak} missed</p></div>
+    <h4>Final standings</h4>
+    <table class="lb">${shown.map((x, i) => `<tr class="${x.me ? 'me' : ''}"><td>#${x.me ? myIdx + 1 : i + 1}</td><td>${esc(x.name)}</td><td>${fmt(x.v)}</td></tr>`).join('')}</table>
+    <div class="rankline"><span>Richest <b>#${side(x => x.wealth)}</b></span><span>Happiest <b>#${side(x => x.harmony)}</b></span><span>Strongest <b>#${side(x => x.power)}</b></span></div>
+    <pre class="share" id="share">Thirty Days · ${TH().season.split(' · ')[1]} · prototype
+Score ${fmt(s.ranked)} · top ${ri.top}%
+${gridLine()}  ${counts.best}/${SEASON.days} best moves
+🏘 ${T(MOODS.harmony(st.harmony))} · ${T(MOODS.power(st.power))} · ${T(MOODS.wealth(st.wealth))}</pre>
+    <div class="row2"><button class="big" id="copyShare">Copy result</button><button class="ghost" id="again">Play the week again</button></div>
+    <p class="note">The real game runs 30 days, against everyone playing that month.</p>`;
+}
+function wireSummary() {
+  $('copyShare').onclick = async e => {
+    const txt = $('share').textContent;
+    try { await navigator.clipboard.writeText(txt); e.target.textContent = 'Copied'; }
+    catch { const r = document.createRange(); r.selectNodeContents($('share')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); e.target.textContent = 'Selected, copy it'; }
+  };
+  $('again').onclick = () => { $('overlay').hidden = true; newGame(G.seed + 1); window.scrollTo({ top: 0 }); };
+}
+
+$('endDay').onclick = endDay;
+$('ordersToggle').onclick = () => { const d = $('dials'); d.hidden = !d.hidden; $('ordersToggle').setAttribute('aria-expanded', !d.hidden); $('ordersToggle').querySelector('.chev').textContent = d.hidden ? 'Change' : 'Done'; };
+['frontier', 'fleet'].forEach(t => $('th-' + t).onclick = () => { theme = t; $('th-frontier').setAttribute('aria-pressed', t === 'frontier'); $('th-fleet').setAttribute('aria-pressed', t === 'fleet'); render(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('overlay').hidden && $('nextDay')) $('nextDay').click(); });
+newGame(20261023);
+</script>
+
+</body>
+</html>
