@@ -273,6 +273,26 @@ body { padding-block: 10px 24px; }
 .gridsmall { font-size: .7rem; letter-spacing: 1px; margin-left: 6px; }
 .seasongrid { display: grid; gap: 4px; text-align: center; padding: 10px; border: 2px solid var(--gold); background: var(--panel-2); }
 .seasongrid .bigrid { font-size: 1.8rem; letter-spacing: 4px; line-height: 1.2; }
+.howto { background: transparent; border: 2px solid var(--gold); color: var(--gold); font-family: var(--font-head); font-size: .82rem; padding: 4px 10px; }
+.howto:hover { background: rgba(242, 193, 78, .12); }
+.tour-block { position: fixed; inset: 0; z-index: 30; }
+.tour-focus { position: relative; z-index: 31; box-shadow: 0 0 0 4px var(--gold), 0 0 0 9999px rgba(12, 9, 28, .8); pointer-events: none; }
+.tour-dim { position: fixed; inset: 0; z-index: 30; background: rgba(12, 9, 28, .8); }
+.tour-card { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); width: min(440px, calc(100% - 32px)); background: var(--panel); border: 3px solid var(--gold); box-shadow: 6px 6px 0 #110e20; padding: 14px 16px; display: grid; gap: 8px; }
+.tour-card[hidden] { display: none; }
+.tour-card.at-bottom { bottom: max(16px, env(safe-area-inset-bottom, 0px)); }
+.tour-card.at-top { top: max(16px, env(safe-area-inset-top, 0px)); }
+.tour-card.center { top: 50%; transform: translate(-50%, -50%); }
+.tour-card h3 { margin: 0; font-family: var(--font-pixel); color: var(--gold); font-size: 1.05rem; }
+.tour-card p { margin: 0; font-size: .95rem; }
+.tour-card .tour-step { font-family: var(--font-pixel); font-size: .6rem; letter-spacing: .06em; color: var(--dim); }
+.tour-btns { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tour-btns .big { padding: 8px 14px; font-size: .85rem; }
+.tour-btns .ghost { padding: 6px 10px; font-size: .85rem; }
+.tour-dots { flex: 1 1 auto; display: flex; gap: 4px; justify-content: center; }
+.tour-dots i { width: 7px; height: 7px; background: var(--line); }
+.tour-dots i.on { background: var(--gold); }
+@media (prefers-reduced-motion: no-preference) { .tour-card { animation: tourIn .18s ease-out; } @keyframes tourIn { from { opacity: .4; } } }
 </style>
 
 
@@ -282,6 +302,7 @@ body { padding-block: 10px 24px; }
   <header class="top">
     <h1>Thirty Days</h1>
     <span class="season" id="seasonName">Season 1 · The Frontier</span>
+    <button class="howto" id="howTo">How to play</button>
     <div class="themes" role="group" aria-label="Theme pack">
       <button id="th-frontier" aria-pressed="true">Frontier</button>
       <button id="th-fleet" aria-pressed="false">Fleet</button>
@@ -324,6 +345,18 @@ body { padding-block: 10px 24px; }
   </details>
 </div>
 
+<div class="tour-block" id="tourBlock" hidden></div>
+<div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle" hidden>
+  <p class="tour-step" id="tourStep"></p>
+  <h3 id="tourTitle"></h3>
+  <p id="tourText"></p>
+  <div class="tour-btns">
+    <button class="ghost" id="tourSkip">Skip</button>
+    <span class="tour-dots" id="tourDots" aria-hidden="true"></span>
+    <button class="ghost" id="tourBack">Back</button>
+    <button class="big" id="tourNext">Next</button>
+  </div>
+</div>
 <div class="overlay" id="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
 
 <script>
@@ -1095,7 +1128,63 @@ $('endDay').onclick = endDay;
 $('ordersToggle').onclick = () => { const d = $('dials'); d.hidden = !d.hidden; $('ordersToggle').setAttribute('aria-expanded', !d.hidden); $('ordersToggle').querySelector('.chev').textContent = d.hidden ? 'Change' : 'Done'; };
 ['frontier', 'fleet'].forEach(t => $('th-' + t).onclick = () => { theme = t; $('th-frontier').setAttribute('aria-pressed', t === 'frontier'); $('th-fleet').setAttribute('aria-pressed', t === 'fleet'); render(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('overlay').hidden && $('nextDay')) $('nextDay').click(); });
+
+// ---------------------------------------------------------------------------
+// How to play: a short tour that points at the real screen. Skippable, replayable.
+// ---------------------------------------------------------------------------
+const TOUR = [
+  { title: 'Welcome, chief', text: 'You lead a small frontier village for thirty days (this prototype is one week). Each day you make one big choice. At the end, your village is ranked against everyone else\'s.', start: true },
+  { target: 'moods', title: 'How your village is doing', text: 'Keep Harmony, Power and Wealth healthy, and keep food in the stores. Your score multiplies them together, so one weak spot drags everything down.' },
+  { target: ['council', 'board'], title: 'Your clues', text: 'Your council tells you what\'s worrying them, and the forecast shows what\'s coming. Read them before you choose. They point to the best move.' },
+  { target: 'cards', title: 'Pick one Focus', text: 'This is the day\'s big decision. Tap a card to read more. TODAY cards vanish tomorrow. 🎲 cards are gambles with the odds shown.' },
+  { target: 'orders', title: 'Your standing orders', text: 'These run everything you don\'t focus on: how hard people work, how well they eat, who gets through the gates, and how strong your guard is. Set them and leave them, or change them when things change.' },
+  { target: 'endDay', title: 'End the day', text: 'See what happened, how everyone else chose, and whether you found the best move. Try to fill your season with 🟩.', last: true },
+];
+let tourAt = -1, tourEls = [], dim = null;
+function clearTourFocus() { tourEls.forEach(el => el.classList.remove('tour-focus')); tourEls = []; if (dim) { dim.remove(); dim = null; } }
+function showTour(i) {
+  tourAt = i; clearTourFocus();
+  const st = TOUR[i], card = $('tourCard');
+  $('tourBlock').hidden = false; card.hidden = false;
+  $('tourStep').textContent = st.start ? 'HOW TO PLAY · 30 SECONDS' : `STEP ${i} OF ${TOUR.length - 1}`;
+  $('tourTitle').textContent = T(st.title);
+  $('tourText').textContent = T(st.text);
+  $('tourDots').innerHTML = TOUR.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
+  $('tourBack').hidden = i === 0;
+  $('tourNext').textContent = st.start ? 'Show me' : st.last ? 'Start playing' : 'Next';
+  $('tourSkip').textContent = st.start ? 'Skip, I\'ll figure it out' : 'Skip';
+  card.className = 'tour-card';
+  if (!st.target) { dim = document.createElement('div'); dim.className = 'tour-dim'; document.body.appendChild(dim); card.classList.add('center'); }
+  else {
+    tourEls = [].concat(st.target).map(id => $(id)).filter(Boolean);
+    tourEls[0].scrollIntoView({ block: 'center', behavior: 'auto' });
+    tourEls.forEach(el => el.classList.add('tour-focus'));
+    const r = tourEls.at(-1).getBoundingClientRect(), top = tourEls[0].getBoundingClientRect();
+    card.classList.add(r.bottom > window.innerHeight - 230 && top.top > 230 ? 'at-top' : 'at-bottom');
+  }
+  $('tourNext').focus({ preventScroll: true });
+}
+function endTour() {
+  clearTourFocus(); tourAt = -1;
+  $('tourBlock').hidden = true; $('tourCard').hidden = true;
+  try { localStorage.setItem('thirtydays-tour-seen', '1'); } catch (e) { /* storage unavailable */ }
+  window.scrollTo({ top: 0 });
+}
+$('tourNext').onclick = () => tourAt >= TOUR.length - 1 ? endTour() : showTour(tourAt + 1);
+$('tourBack').onclick = () => showTour(Math.max(0, tourAt - 1));
+$('tourSkip').onclick = endTour;
+$('howTo').onclick = () => { if ($('overlay').hidden) showTour(0); };
+document.addEventListener('keydown', e => {
+  if (tourAt < 0) return;
+  if (e.key === 'Escape') { e.preventDefault(); endTour(); }
+  if (e.key === 'ArrowRight') $('tourNext').click();
+  if (e.key === 'ArrowLeft' && tourAt > 0) $('tourBack').click();
+});
+window.addEventListener('resize', () => { if (tourAt >= 0) showTour(tourAt); });
+let seenTour = false;
+try { seenTour = localStorage.getItem('thirtydays-tour-seen') === '1'; } catch (e) { seenTour = false; }
 newGame(20261023);
+if (!seenTour) showTour(0);
 </script>
 
 </body>
