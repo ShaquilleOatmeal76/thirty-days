@@ -219,10 +219,10 @@ body { padding-block: 10px 24px; }
 .voice p { margin: 0; font-size: .88rem; }
 .voice p b { font-family: var(--font-head); }
 .voice .more { background: none; border: 0; color: var(--dim); font-size: .78rem; padding: 0; text-decoration: underline; margin-left: 4px; }
-.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: 6px; }
-.chipday { background: var(--panel); border: 2px solid var(--line); padding: 5px 7px; display: grid; gap: 2px; min-width: 0; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.chipday { background: var(--panel); border: 2px solid var(--line); padding: 5px 7px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .chipday .d { font-family: var(--font-pixel); font-size: .58rem; color: var(--dim); }
-.chipday .t { font-size: .8rem; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.chipday .t { font-size: .8rem; line-height: 1.25; }
 .chipday.today { border-color: var(--gold); }
 .chipday .c { font-size: .66rem; color: var(--dim); }
 .chipday .c.sure { color: var(--good); }
@@ -298,7 +298,7 @@ body { padding-block: 10px 24px; }
 .stage canvas { width: 100%; height: auto; max-height: none; }
 @media (max-width: 880px) { .stage canvas { max-height: none; } }
 .stage .bubble { display: block; }
-.bubble { position: absolute; z-index: 5; width: min(270px, 78%); background: #f4ecda; color: #1c1932; border: 3px solid #1c1932; box-shadow: 3px 3px 0 rgba(0,0,0,.35); padding: 6px 9px; font-size: .84rem; line-height: 1.3; }
+.bubble { position: absolute; z-index: 5; width: min(230px, 66%); background: #f4ecda; color: #1c1932; border: 3px solid #1c1932; box-shadow: 3px 3px 0 rgba(0,0,0,.35); padding: 6px 9px; font-size: .84rem; line-height: 1.3; }
 .bubble b { font-family: var(--font-head); } .bubble small { color: #5a5470; }
 .bubble p { margin: 2px 0 0; }
 .bubble::after { content: ""; position: absolute; left: calc(var(--tail, 30px) - 6px); bottom: -9px; border: 6px solid transparent; border-top-color: #1c1932; border-bottom: 0; }
@@ -311,6 +311,7 @@ body { padding-block: 10px 24px; }
 #dials .dial { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 0; border: 0; }
 #dials .dial .nm { font-weight: 700; font-size: .78rem; }
 #dials .dial .arrows { grid-column: 2; font-size: .7rem; line-height: 1.2; }
+@media (max-width: 520px) { .bubble { font-size: .76rem; padding: 4px 7px; } }
 </style>
 
 
@@ -331,7 +332,7 @@ body { padding-block: 10px 24px; }
   <div class="layout">
     <div class="left">
       <section class="stage" id="stage" aria-label="Your settlement. Tap a council member to hear from them.">
-        <canvas id="diorama" width="320" height="196"></canvas>
+        <canvas id="diorama" width="272" height="170"></canvas>
         <div class="bubble" id="council" aria-live="polite" hidden></div>
         <div class="hud" id="hud"></div>
       </section>
@@ -848,7 +849,7 @@ function newGame(seed) {
 // focus on, the council wanders the streets and speaks up, weather moves.
 // ---------------------------------------------------------------------------
 const cv = document.getElementById('diorama'), ctx = cv.getContext('2d');
-const N = 11, HW = 12, HH = 6, OX = 160, OY = 50, MID = 5;
+const N = 11, HW = 12, HH = 6, OX = 136, OY = 30, MID = 5;
 const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
 const iso = (gx, gy) => [OX + (gx - gy) * HW, OY + (gx + gy) * HH];
 const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) ^ (a * b); h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; };
@@ -860,20 +861,21 @@ function cube(cx, cy, a, h, top, left, right) {
 function roof(cx, cy, a, c1, c2) { for (let k = 0; k * 2 < a; k++) diamond(cx, cy - k * 1.6, a - 2 * k, Math.max(1, (a - 2 * k) >> 1), k % 2 ? c2 : c1); }
 
 const PAL = {
-  frontier: { g1: '#5aa653', g2: '#67b55c', edge: '#3d7a3a', edge2: '#2e5e2c', plaza: '#c9a46a', plaza2: '#b8935c', wallT: '#e2b57a', wallL: '#a06a3a', wallR: '#b97d48', roof1: '#c4473a', roof2: '#e05a4a', field: '#e3c45a', furrow: '#b49332', tree1: '#2f7a3c', tree2: '#3f9a4a', trunk: '#6b4226', post: '#7a5230', postT: '#a8743f', sky: '#3a4466', sky2: '#2c3556' },
-  fleet:    { g1: '#2f6fa3', g2: '#3a7fb5', edge: '#245a86', edge2: '#1b4468', plaza: '#e2cf96', plaza2: '#d2bd80', wallT: '#eee9dc', wallL: '#a89f8a', wallR: '#c7bea8', roof1: '#3b6d9a', roof2: '#4f86b8', field: '#9b7748', furrow: '#6f5232', tree1: '#2f8a5a', tree2: '#3fa36a', trunk: '#6b4226', post: '#d64545', postT: '#ffffff', sky: '#2e4a6d', sky2: '#223a58' },
+  frontier: { g1: '#5aa653', g2: '#67b55c', edge: '#3d7a3a', edge2: '#2e5e2c', plaza: '#c9a46a', plaza2: '#b8935c', road1: '#b8996a', road2: '#ab8c5e', wallT: '#e2b57a', wallL: '#a06a3a', wallR: '#b97d48', roof1: '#c4473a', roof2: '#e05a4a', field: '#e3c45a', furrow: '#b49332', tree1: '#2f7a3c', tree2: '#3f9a4a', trunk: '#6b4226', post: '#7a5230', postT: '#a8743f', sky: '#3a4466', sky2: '#2c3556' },
+  fleet:    { g1: '#2f6fa3', g2: '#3a7fb5', edge: '#245a86', edge2: '#1b4468', plaza: '#e2cf96', plaza2: '#d2bd80', road1: '#d8c48c', road2: '#ccb67c', wallT: '#eee9dc', wallL: '#a89f8a', wallR: '#c7bea8', roof1: '#3b6d9a', roof2: '#4f86b8', field: '#9b7748', furrow: '#6f5232', tree1: '#2f8a5a', tree2: '#3fa36a', trunk: '#6b4226', post: '#d64545', postT: '#ffffff', sky: '#2e4a6d', sky2: '#223a58' },
 };
 // Village layout on an 11×11 grid (5,5 is the square)
-const PLAZA = new Set(['5,5', '4,5', '6,5', '5,4', '5,6', '4,4', '6,6']);
-const HUTS = [[3, 4], [3, 6], [7, 4], [4, 3], [6, 3], [7, 6], [4, 7], [6, 7], [3, 2], [2, 4], [2, 6], [8, 3], [3, 8], [8, 7], [2, 2], [7, 2]];
-const SPOT = { market: [7, 3], tavern: [2, 7], sawmill: [2, 3], fields: [[8, 8], [9, 8], [8, 9], [9, 9], [7, 9]], gate: [9, 5], well: [5, 5], bonfire: [4, 5] };
+const PLAZA = new Set(); for (let a = 4; a <= 6; a++) for (let b = 4; b <= 6; b++) PLAZA.add(a + ',' + b);
+const ROAD = new Set(); for (let k = 0; k < N; k++) { if (k < 4 || k > 6) { ROAD.add('5,' + k); ROAD.add(k + ',5'); } }
+const HUTS = [[4, 3], [3, 6], [6, 7], [7, 4], [3, 4], [6, 3], [4, 7], [7, 6], [3, 3], [7, 7], [2, 4], [4, 2], [2, 6], [6, 2], [8, 4], [4, 8], [8, 6], [6, 8], [2, 8], [8, 2], [1, 4], [4, 1]];
+const SPOT = { market: [7, 3], tavern: [3, 7], sawmill: [2, 2], fields: [[8, 8], [9, 8], [8, 9], [9, 9], [7, 9], [9, 7]], gate: [9, 5], well: [5, 5], bonfire: [4, 5] };
 const ISLAND = (gx, gy) => Math.abs(gx - MID) <= 4 && Math.abs(gy - MID) <= 4;
 const AREAS = {
-  plaza: [[5, 5], [4, 5], [6, 5], [5, 4], [5, 6]],
+  plaza: [[5, 4], [4, 5], [6, 5], [5, 6], [4, 4], [6, 6]],
   fields: [[8, 8], [9, 8], [8, 9], [9, 9], [7, 8]],
   gate: [[9, 5], [9, 4], [9, 6], [8, 5]],
-  market: [[7, 3], [6, 2], [8, 2], [7, 2]],
-  outskirts: [[10, 1], [10, 9], [1, 10], [0, 5], [10, 5]],
+  market: [[7, 2], [8, 3], [6, 4], [7, 4]],
+  outskirts: [[10, 5], [5, 10], [0, 5], [5, 0], [10, 1]],
 };
 const ACTIVITY = {
   harvest: 'fields', stockpile: 'fields', well: 'plaza', build_fields: 'fields',
@@ -887,11 +889,33 @@ const MARCH = new Set(['drill', 'walls', 'mercs']);
 
 // Characters people can get to know
 const CAST_LOOK = {
-  marta:  { home: [5, 4], wander: 1.2, draw: (x, y, f) => { px(x - 2, y - 9, 4, 2, '#cfcfd8'); px(x - 1, y - 10, 2, 1, '#cfcfd8'); px(x - 2, y - 7, 4, 2, '#f1c9a0'); px(x - 3, y - 5, 6, 3, '#7b4fa0'); px(x - 2, y - 2, 4, 2, '#5a3b2a'); px(x + 3, y - 4, 1, 5, '#8a6a45'); } },
-  rook:   { home: [9, 5], wander: 1.0, draw: (x, y, f) => { px(x - 2, y - 10, 4, 2, '#b8c2cc'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 3, y - 6, 6, 4, '#3e6fb0'); px(x - 1, y - 5, 2, 2, '#f2c14e'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#2a2a3a'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#2a2a3a'); px(x + 4, y - 13, 1, 13, '#8a6a45'); px(x + 3, y - 15, 3, 2, '#dfe6ee'); } },
-  pip:    { home: [7, 3], wander: 1.4, draw: (x, y, f) => { px(x - 2, y - 12, 4, 3, '#5a3b2a'); px(x - 3, y - 9, 6, 1, '#5a3b2a'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 2, y - 6, 4, 4, '#3f9a5a'); px(x + 2, y - 5, 2, 2, '#c99a62'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3a2a20'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3a2a20'); if (f) px(x + 4, y - 9, 1, 1, '#f2c14e'); } },
-  hollis: { home: [8, 8], wander: 1.4, draw: (x, y, f) => { px(x - 4, y - 10, 8, 1, '#e3c45a'); px(x - 2, y - 11, 4, 1, '#e3c45a'); px(x - 2, y - 9, 4, 2, '#e8b88e'); px(x - 2, y - 7, 4, 2, '#c4473a'); px(x - 2, y - 5, 4, 3, '#3b5d8f'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3b5d8f'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3b5d8f'); px(x - 4, y - 12, 1, 12, '#8a6a45'); px(x - 5, y - 13, 3, 1, '#b8c2cc'); } },
+  marta:  { home: [5, 4], wander: 1.2, color: '#c792ea', draw: (x, y, f) => { px(x - 2, y - 9, 4, 2, '#cfcfd8'); px(x - 1, y - 10, 2, 1, '#cfcfd8'); px(x - 2, y - 7, 4, 2, '#f1c9a0'); px(x - 3, y - 5, 6, 3, '#7b4fa0'); px(x - 2, y - 2, 4, 2, '#5a3b2a'); px(x + 3, y - 4, 1, 5, '#8a6a45'); } },
+  rook:   { home: [8, 5], wander: 1.0, color: '#7cc6f5', draw: (x, y, f) => { px(x - 2, y - 10, 4, 2, '#b8c2cc'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 3, y - 6, 6, 4, '#3e6fb0'); px(x - 1, y - 5, 2, 2, '#f2c14e'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#2a2a3a'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#2a2a3a'); px(x + 4, y - 13, 1, 13, '#8a6a45'); px(x + 3, y - 15, 3, 2, '#dfe6ee'); } },
+  pip:    { home: [7, 4], wander: 1.3, color: '#8fd16a', draw: (x, y, f) => { px(x - 2, y - 12, 4, 3, '#5a3b2a'); px(x - 3, y - 9, 6, 1, '#5a3b2a'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 2, y - 6, 4, 4, '#3f9a5a'); px(x + 2, y - 5, 2, 2, '#c99a62'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3a2a20'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3a2a20'); if (f) px(x + 4, y - 9, 1, 1, '#f2c14e'); } },
+  hollis: { home: [8, 8], wander: 1.3, color: '#f2c14e', draw: (x, y, f) => { px(x - 4, y - 10, 8, 1, '#e3c45a'); px(x - 2, y - 11, 4, 1, '#e3c45a'); px(x - 2, y - 9, 4, 2, '#e8b88e'); px(x - 2, y - 7, 4, 2, '#c4473a'); px(x - 2, y - 5, 4, 3, '#3b5d8f'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3b5d8f'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3b5d8f'); px(x - 4, y - 12, 1, 12, '#8a6a45'); px(x - 5, y - 13, 3, 1, '#b8c2cc'); } },
 };
+const FOLK_FIRST = ['Agnes', 'Barnaby', 'Clem', 'Dottie', 'Ezra', 'Fern', 'Gus', 'Hattie', 'Ike', 'Juniper', 'Lem', 'Mabel', 'Ned', 'Opal', 'Percy', 'Rosie', 'Silas', 'Tilly'];
+const FOLK_ROLE = ['the goose herder', 'the candle maker', 'the cooper', 'the night baker', 'the rope twister', 'the tanner', 'the bee keeper', 'the cobbler', 'the reed cutter', 'the mushroom forager', 'the weaver', 'the apprentice smith'];
+const ODD = [
+  'I named all the chickens after the council. Don\'t tell Rook which one is him.',
+  'Last night the well hummed. One note. A B-flat, I think.',
+  'I\'m building a boat. We\'re nowhere near water. That\'s the beauty of it.',
+  'My goat ate a letter addressed to you. It looked important. She seemed pleased.',
+  'If you stand on the third hill at dawn, the sun winks at you. Only on Tuesdays.',
+  'I keep a list of everyone who\'s been rude to me. You\'re not on it. Yet.',
+  'Pip owes me four eggs and an apology. Mostly the eggs.',
+  'I found a spoon in the field. Not a nice spoon. An old, angry spoon.',
+  'I\'ve been practicing my scream for when the raiders come. Want to hear it? No? Fair.',
+  'Hollis talks to the turnips. I talk to Hollis. Nobody talks to me.',
+  'The crows have started bringing me buttons. I don\'t know what I did to deserve this.',
+  'I dreamt Marta was a bear. She was very polite about it.',
+  'Does anyone else hear the trees gossiping? Just me? Lovely.',
+  'I\'m saving my bathwater for something. I\'ll know it when I see it.',
+  'Rook winked at me. Or he got dust in his eye. Either way, I\'m flattered.',
+  'One day I\'ll leave and become a legend. Today I\'m carrying firewood.',
+  'Ask me what\'s in the sack. Go on. ...No, I can\'t tell you.',
+  'My grandmother said never trust a man with two hats. Pip has three.',
+];
 const IDLE = {
   marta: ['I\'ve buried two husbands and three mayors. Don\'t make me add you to the list.', 'The young ones think I\'m slow. I\'m not slow. I\'m deliberate.', 'Mind the well. It listens.'],
   rook: ['Quiet roads make me nervous.', 'Every post on that wall has a name. I named them.', 'Sleep? I\'ll sleep in winter.'],
@@ -914,15 +938,15 @@ function buildScene() {
   if (s.buildings.includes('sawmill')) statics.push({ gx: SPOT.sawmill[0], gy: SPOT.sawmill[1], draw: (cx, cy, t) => sawmill(cx, cy, t) });
   if (s.well) statics.push({ gx: SPOT.well[0], gy: SPOT.well[1], draw: (cx, cy) => well(cx, cy) });
   if (s.history.some(h => h.focus === 'bonfire')) statics.push({ gx: SPOT.bonfire[0], gy: SPOT.bonfire[1], draw: (cx, cy, t) => fire(cx, cy, t, 1.4) });
-  if (s.buildings.includes('palisade')) for (let i = 1; i < N - 1; i++) [[i, 1], [1, i], [i, N - 2], [N - 2, i]].forEach(([gx, gy]) => { if (!(gx === 9 && (gy === 5))) statics.push({ gx, gy, z: .6, draw: (cx, cy) => post(cx, cy, P) }); });
+  if (s.buildings.includes('palisade')) for (let i = 1; i < N - 1; i++) [[i, 0], [0, i], [i, N - 1], [N - 1, i]].forEach(([gx, gy]) => { if (!ROAD.has(gx + ',' + gy)) statics.push({ gx, gy, z: .6, draw: (cx, cy) => post(cx, cy, P) }); });
   if (stats(s, G.morning).power >= 45) statics.push({ gx: 8, gy: 5, z: .4, draw: (cx, cy, t) => banner(cx, cy, sea, t) });
   // trees, and boats on the water for the fleet
   const taken = new Set(statics.map(o => o.gx + ',' + o.gy));
   for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
-    const k = gx + ',' + gy; if (taken.has(k) || PLAZA.has(k)) continue;
+    const k = gx + ',' + gy; if (taken.has(k) || PLAZA.has(k) || ROAD.has(k) || HUTS.some(([a, b]) => a === gx && b === gy) || SPOT.fields.some(([a, b]) => a === gx && b === gy)) continue;
     const ring = Math.max(Math.abs(gx - MID), Math.abs(gy - MID));
     if (sea) { if (!ISLAND(gx, gy) && hash(gx, gy) > .82) statics.push({ gx, gy, draw: (cx, cy, t) => boat(cx, cy, gx * 7 + gy, t) }); else if (ISLAND(gx, gy) && ring === 4 && hash(gy, gx) > .6) statics.push({ gx, gy, draw: (cx, cy, t) => tree(cx, cy, P, gx, gy, t) }); }
-    else if ((ring >= 4 && hash(gx, gy) > .45) || (ring >= 2 && hash(gy * 2, gx * 3) > .95)) statics.push({ gx, gy, draw: (cx, cy, t) => tree(cx, cy, P, gx, gy, t) });
+    else if ((ring >= 5 && hash(gx, gy) > .4) || (ring === 4 && hash(gx, gy) > .8)) statics.push({ gx, gy, draw: (cx, cy, t) => tree(cx, cy, P, gx, gy, t) });
   }
   // events everyone shares
   const day = Math.min(s.day, SEASON.days), ev = SCRIPT[day] && SCRIPT[day].event;
@@ -934,12 +958,16 @@ function buildScene() {
 
 function randomTile(area) {
   if (area && AREAS[area]) { const a = AREAS[area]; const [gx, gy] = a[Math.floor(Math.random() * a.length)]; return [gx + (Math.random() - .5) * .8, gy + (Math.random() - .5) * .8]; }
-  for (let k = 0; k < 20; k++) { const gx = 2 + Math.floor(Math.random() * 7), gy = 2 + Math.floor(Math.random() * 7); if (freeTile(gx, gy)) return [gx + (Math.random() - .5) * .6, gy + (Math.random() - .5) * .6]; }
+  for (let k = 0; k < 20; k++) { const gx = 1 + Math.floor(Math.random() * 9), gy = 1 + Math.floor(Math.random() * 9), key = gx + ',' + gy; if (freeTile(gx, gy) && (ROAD.has(key) || PLAZA.has(key) || Math.random() < .35)) return [gx + (Math.random() - .5) * .5, gy + (Math.random() - .5) * .5]; }
   return [MID, MID];
 }
 function syncActors(re = true) {
-  const want = Math.min(18, Math.max(4, G.s.pop));
-  while (actors.length < want) { const [x, y] = randomTile(); actors.push({ x, y, tx: x, ty: y, wait: Math.random() * 2, speed: .7 + Math.random() * .5, look: actors.length, bob: Math.random() * 6 }); }
+  const want = Math.max(3, Math.min(8, Math.round(G.s.pop / 3)));
+  while (actors.length < want) {
+    const [x, y] = randomTile(), i = actors.length;
+    actors.push({ x, y, tx: x, ty: y, wait: Math.random() * 2, speed: .6 + Math.random() * .4, look: i, bob: Math.random() * 6,
+      name: FOLK_FIRST[(i * 7 + 3) % FOLK_FIRST.length], role: FOLK_ROLE[(i * 5 + 1) % FOLK_ROLE.length], line: (i * 11 + 4) % ODD.length });
+  }
   actors.length = want;
   Object.keys(CAST_LOOK).forEach(id => { if (!cast[id]) { const [hx, hy] = CAST_LOOK[id].home; cast[id] = { id, x: hx, y: hy, tx: hx, ty: hy, wait: Math.random() * 3, speed: .55, bob: 0 }; } });
   if (re) retarget();
@@ -948,7 +976,7 @@ function retarget() {
   const area = G.choice ? ACTIVITY[G.choice] || (G.choice.startsWith('build_') ? 'market' : null) : null;
   actors.forEach((a, i) => { a.task = area && i % 5 !== 4 ? area : null; a.wait = Math.random() * .8; });
   // Pip lives at the square until there's a market
-  CAST_LOOK.pip.home = G.s.buildings.includes('market') ? [7, 3] : [6, 4];
+  CAST_LOOK.pip.home = G.s.buildings.includes('market') ? [7, 4] : [6, 4];
 }
 function stepWalker(a, dt, home, radius) {
   if (a.wait > 0) { a.wait -= dt; a.moving = false; return; }
@@ -990,7 +1018,8 @@ function paint(t) {
     const [cx, cy] = iso(gx, gy), k = gx + ',' + gy;
     let c = (gx + gy) % 2 ? P.g1 : P.g2;
     if (sea ? ISLAND(gx, gy) : PLAZA.has(k)) c = (gx + gy) % 2 ? P.plaza : P.plaza2;
-    if (sea && ISLAND(gx, gy) && Math.max(Math.abs(gx - MID), Math.abs(gy - MID)) <= 3 && !PLAZA.has(k)) c = (gx + gy) % 2 ? '#7bb661' : '#88c46b';
+    if (ROAD.has(k) && (!sea || ISLAND(gx, gy))) c = (gx + gy) % 2 ? P.road1 : P.road2;
+    if (sea && ISLAND(gx, gy) && Math.max(Math.abs(gx - MID), Math.abs(gy - MID)) <= 3 && !PLAZA.has(k) && !ROAD.has(k)) c = (gx + gy) % 2 ? '#7bb661' : '#88c46b';
     diamond(cx, cy, HW, HH, c);
     if (sea && !ISLAND(gx, gy)) { const sh = Math.sin(t * 2 + gx * 1.3 + gy) > .55; if (sh) px(cx - 3 + hash(gy, gx) * 6, cy - 1, 4, 1, '#9fd2f0'); }
     else if (!PLAZA.has(k) && hash(gx * 5, gy * 3) > .7) px(cx - 4 + hash(gx, gy * 9) * 8, cy - 1, 1, 1, '#8fd16a');
@@ -999,7 +1028,13 @@ function paint(t) {
   // everything that stands up, back to front
   const items = scene.statics.slice();
   actors.forEach((a, i) => items.push({ gx: a.x, gy: a.y, z: .3, draw: (cx, cy) => villager(cx, cy, a, i, t) }));
-  Object.values(cast).forEach(c => items.push({ gx: c.x, gy: c.y, z: .35, draw: (cx, cy) => { CAST_LOOK[c.id].draw(cx, cy - (c.moving ? (Math.sin(t * 10) > 0 ? 1 : 0) : 0), c.moving && Math.sin(t * 10) > 0); if (c.id === bubbleWho) px(cx - 1, cy - 18 + Math.round(Math.sin(t * 4)), 2, 2, '#f2c14e'); } }));
+  Object.values(cast).forEach(c => items.push({ gx: c.x, gy: c.y, z: .35, draw: (cx, cy) => {
+    const L = CAST_LOOK[c.id], fy = Math.round(Math.sin(t * 3 + c.x) * 1.2);
+    diamond(cx, cy + 1, 5, 2, 'rgba(0,0,0,.28)');
+    L.draw(cx, cy - (c.moving ? (Math.sin(t * 10) > 0 ? 1 : 0) : 0), c.moving && Math.sin(t * 10) > 0);
+    px(cx - 2, cy - 21 + fy, 4, 1, L.color); px(cx - 1, cy - 22 + fy, 2, 3, L.color); px(cx - 1, cy - 19 + fy, 2, 1, L.color);
+    if (c.id === bubbleWho) px(cx - 3, cy - 21 + fy, 6, 1, '#ffffff');
+  } }));
   riders.forEach((r, i) => items.push({ gx: MID + Math.cos(r.a) * r.r, gy: MID + Math.sin(r.a) * r.r, z: .3, draw: (cx, cy) => rider(cx, cy, t, i) }));
   items.sort((a, b) => (a.gx + a.gy + (a.z || 0) - (a.flat ? .5 : 0)) - (b.gx + b.gy + (b.z || 0) - (b.flat ? .5 : 0)));
   items.forEach(o => { const [cx, cy] = iso(o.gx, o.gy); o.draw(cx, cy, t); });
@@ -1053,13 +1088,14 @@ function showVoice() {
   if (!v) { bubbleWho = null; $('council').hidden = true; return; }
   bubbleWho = v.who;
   $('council').hidden = false;
-  $('council').innerHTML = `<b>${esc(v.name)}</b> <small>${esc(T(v.role))}</small><p>${esc(T(v.line))}</p>${voicesNow.length > 1 ? `<button class="more" id="voiceMore" aria-label="Next council member">${voiceIdx + 1}/${voicesNow.length} ›</button>` : ''}`;
+  $('council').innerHTML = `<b>${esc(v.name)}</b> <small>${esc(T(v.role))}${v.folk ? '' : ' · council'}</small><p>${esc(T(v.line))}</p>${voicesNow.length > 1 ? `<button class="more" id="voiceMore" aria-label="Next council member">${voiceIdx + 1}/${voicesNow.length} ›</button>` : ''}`;
   if ($('voiceMore')) $('voiceMore').onclick = e => { e.stopPropagation(); voiceIdx = (voiceIdx + 1) % voicesNow.length; showVoice(); };
   placeBubble();
 }
+function speakerPos(who) { if (!who) return null; if (who.startsWith('v')) { const a = actors[+who.slice(1)]; return a || null; } return cast[who] || null; }
 function placeBubble() {
-  const el = $('council'); if (el.hidden || !bubbleWho || !cast[bubbleWho]) return;
-  const c = cast[bubbleWho], [sx, sy] = iso(c.x, c.y), r = cv.getBoundingClientRect(), k = r.width / cv.width;
+  const el = document.getElementById('council'); const c = speakerPos(bubbleWho); if (el.hidden || !c) return;
+  const [sx, sy] = iso(c.x, c.y), r = cv.getBoundingClientRect(), k = r.width / cv.width;
   const w = el.offsetWidth, stageW = cv.parentElement.clientWidth;
   let left = sx * k - w / 2; left = Math.max(6, Math.min(stageW - w - 6, left));
   let top = (sy - 20) * k - el.offsetHeight - 6;
@@ -1068,20 +1104,28 @@ function placeBubble() {
   el.style.left = left + 'px'; el.style.top = top + 'px';
   el.style.setProperty('--tail', Math.max(14, Math.min(w - 14, sx * k - left)) + 'px');
 }
-cv.addEventListener('click', e => {
+function hitTest(e) {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
-  const hit = Object.values(cast).find(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 16 && y < sy + 3; });
-  if (!hit) return;
+  const c = Object.values(cast).find(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 23 && y < sy + 3; });
+  if (c) return { cast: c };
+  const i = actors.findIndex(a => { const [sx, sy] = iso(a.x, a.y); return x > sx - 4 && x < sx + 5 && y > sy - 10 && y < sy + 3; });
+  return i >= 0 ? { folk: i } : null;
+}
+cv.addEventListener('click', e => {
+  const h = hitTest(e); if (!h) return;
+  if (h.folk != null) {
+    const a = actors[h.folk]; const said = ODD[a.line]; a.line = (a.line + 1) % ODD.length; a.wait = 2.5; a.tx = a.x; a.ty = a.y;
+    voicesNow = voicesNow.filter(v => !v.folk).concat([{ name: a.name, role: a.role, who: 'v' + h.folk, line: said, folk: true }]);
+    voiceIdx = voicesNow.length - 1; showVoice(); return;
+  }
+  const hit = h.cast;
   const i = voicesNow.findIndex(v => v.who === hit.id);
   if (i >= 0) { voiceIdx = i; showVoice(); return; }
   const lines = IDLE[hit.id], c = CAST[hit.id];
   voicesNow = voicesNow.concat([{ ...c, who: hit.id, line: lines[Math.floor(Math.random() * lines.length)] }]);
   voiceIdx = voicesNow.length - 1; showVoice();
 });
-cv.addEventListener('mousemove', e => {
-  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
-  cv.style.cursor = Object.values(cast).some(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 16 && y < sy + 3; }) ? 'pointer' : 'default';
-});
+cv.addEventListener('mousemove', e => { cv.style.cursor = hitTest(e) ? 'pointer' : 'default'; });
 window.addEventListener('resize', placeBubble);
 document.getElementById('council').addEventListener('click', e => { e.currentTarget.hidden = true; bubbleWho = null; });
 document.getElementById('council').title = 'Tap to close. Tap anyone in the village to hear from them.';
