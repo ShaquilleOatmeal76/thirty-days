@@ -293,6 +293,24 @@ body { padding-block: 10px 24px; }
 .tour-dots i { width: 7px; height: 7px; background: var(--line); }
 .tour-dots i.on { background: var(--gold); }
 @media (prefers-reduced-motion: no-preference) { .tour-card { animation: tourIn .18s ease-out; } @keyframes tourIn { from { opacity: .4; } } }
+.layout { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.stage canvas { width: 100%; height: auto; max-height: none; }
+@media (max-width: 880px) { .stage canvas { max-height: none; } }
+.stage .bubble { display: block; }
+.bubble { position: absolute; z-index: 5; width: min(270px, 78%); background: #f4ecda; color: #1c1932; border: 3px solid #1c1932; box-shadow: 3px 3px 0 rgba(0,0,0,.35); padding: 6px 9px; font-size: .84rem; line-height: 1.3; }
+.bubble b { font-family: var(--font-head); } .bubble small { color: #5a5470; }
+.bubble p { margin: 2px 0 0; }
+.bubble::after { content: ""; position: absolute; left: calc(var(--tail, 30px) - 6px); bottom: -9px; border: 6px solid transparent; border-top-color: #1c1932; border-bottom: 0; }
+.bubble.below::after { bottom: auto; top: -9px; border-top: 0; border-bottom: 6px solid #1c1932; }
+.bubble .more { display: block; margin: 4px 0 0 auto; background: #1c1932; color: #f4ecda; border: 0; font-family: var(--font-pixel); font-size: .62rem; padding: 3px 6px; text-decoration: none; }
+.orders-head { display: flex; gap: 8px; align-items: baseline; padding: 6px 8px 0; font-size: .74rem; color: var(--dim); }
+.orders-head .lbl { font-family: var(--font-pixel); font-size: .6rem; color: var(--ink); }
+#dials { padding: 4px 8px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+@media (max-width: 480px) { #dials { grid-template-columns: minmax(0, 1fr); } }
+#dials .dial { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 0; border: 0; }
+#dials .dial .nm { font-weight: 700; font-size: .78rem; }
+#dials .dial .arrows { grid-column: 2; font-size: .7rem; line-height: 1.2; }
 </style>
 
 
@@ -312,20 +330,20 @@ body { padding-block: 10px 24px; }
 
   <div class="layout">
     <div class="left">
-      <section class="stage" aria-label="Your settlement">
-        <canvas id="diorama" width="208" height="112"></canvas>
+      <section class="stage" id="stage" aria-label="Your settlement. Tap a council member to hear from them.">
+        <canvas id="diorama" width="320" height="196"></canvas>
+        <div class="bubble" id="council" aria-live="polite" hidden></div>
         <div class="hud" id="hud"></div>
       </section>
       <div class="moods" id="moods" aria-label="How the settlement is doing"></div>
-      <div class="voice" id="council" aria-live="polite"></div>
       <div class="strip" id="board" aria-label="Coming up"></div>
     </div>
 
     <section class="right" aria-label="Today">
       <p class="headline" id="headline"></p>
       <div class="orders" id="orders">
-        <button class="orders-sum" id="ordersToggle" aria-expanded="false" aria-controls="dials"><span class="lbl">ORDERS</span><span id="ordersSummary"></span><span class="chev">Change</span></button>
-        <div id="dials" hidden></div>
+        <div class="orders-head"><span class="lbl">STANDING ORDERS</span><span>run everything you don't focus on</span></div>
+        <div id="dials"></div>
       </div>
       <div class="tiles" id="cards"></div>
       <div class="decide" id="decide">
@@ -826,99 +844,249 @@ function newGame(seed) {
 }
 
 // ---------------------------------------------------------------------------
-// Pixel diorama
+// Pixel diorama: a living village. Villagers walk to whatever you've chosen to
+// focus on, the council wanders the streets and speaks up, weather moves.
 // ---------------------------------------------------------------------------
 const cv = document.getElementById('diorama'), ctx = cv.getContext('2d');
-const OX = 104, OY = 28, N = 9;
+const N = 11, HW = 12, HH = 6, OX = 160, OY = 50, MID = 5;
 const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-const iso = (gx, gy) => [OX + (gx - gy) * 8, OY + (gx + gy) * 4];
+const iso = (gx, gy) => [OX + (gx - gy) * HW, OY + (gx + gy) * HH];
+const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) ^ (a * b); h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; };
 function diamond(cx, cy, hw, hh, c) { for (let dy = -hh; dy < hh; dy++) { const t = dy < 0 ? (hh + dy + 1) / hh : (hh - dy) / hh; const w = Math.round(hw * t); if (w > 0) px(cx - w, cy + dy, 2 * w, 1, c); } }
 function cube(cx, cy, a, h, top, left, right) {
   for (let i = 0; i < a; i++) { px(cx - a + i, cy + (i >> 1) - h + 1, 1, h, left); px(cx + i, cy + ((a - i) >> 1) - h + 1, 1, h, right); }
   diamond(cx, cy - h + 1, a, a >> 1, top);
 }
-function roof(cx, cy, a, c1, c2) { for (let k = 0; k * 2 < a; k++) diamond(cx, cy - k * 1.5, a - 2 * k, Math.max(1, (a - 2 * k) >> 1), k % 2 ? c2 : c1); }
-const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) ^ (a * b); h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; };
+function roof(cx, cy, a, c1, c2) { for (let k = 0; k * 2 < a; k++) diamond(cx, cy - k * 1.6, a - 2 * k, Math.max(1, (a - 2 * k) >> 1), k % 2 ? c2 : c1); }
 
 const PAL = {
-  frontier: { g1: '#5aa653', g2: '#67b55c', edge: '#3d7a3a', plaza: '#c9a46a', plaza2: '#b8935c', wallT: '#d8a56a', wallL: '#a06a3a', wallR: '#b97d48', roof1: '#c4473a', roof2: '#e05a4a', field: '#e3c45a', furrow: '#b49332', tree1: '#2f7a3c', tree2: '#3f9a4a', trunk: '#6b4226', post: '#7a5230', postT: '#a8743f', sky1: '#28344f', sky2: '#3a4466' },
-  fleet:    { g1: '#2f6fa3', g2: '#3a7fb5', edge: '#245a86', plaza: '#e2cf96', plaza2: '#d2bd80', wallT: '#e9e4d6', wallL: '#a89f8a', wallR: '#c7bea8', roof1: '#3b6d9a', roof2: '#4f86b8', field: '#9b7748', furrow: '#6f5232', tree1: '#e9e4d6', tree2: '#ffffff', trunk: '#6b4226', post: '#d64545', postT: '#ffffff', sky1: '#1f3550', sky2: '#2e4a6d' },
+  frontier: { g1: '#5aa653', g2: '#67b55c', edge: '#3d7a3a', edge2: '#2e5e2c', plaza: '#c9a46a', plaza2: '#b8935c', wallT: '#e2b57a', wallL: '#a06a3a', wallR: '#b97d48', roof1: '#c4473a', roof2: '#e05a4a', field: '#e3c45a', furrow: '#b49332', tree1: '#2f7a3c', tree2: '#3f9a4a', trunk: '#6b4226', post: '#7a5230', postT: '#a8743f', sky: '#3a4466', sky2: '#2c3556' },
+  fleet:    { g1: '#2f6fa3', g2: '#3a7fb5', edge: '#245a86', edge2: '#1b4468', plaza: '#e2cf96', plaza2: '#d2bd80', wallT: '#eee9dc', wallL: '#a89f8a', wallR: '#c7bea8', roof1: '#3b6d9a', roof2: '#4f86b8', field: '#9b7748', furrow: '#6f5232', tree1: '#2f8a5a', tree2: '#3fa36a', trunk: '#6b4226', post: '#d64545', postT: '#ffffff', sky: '#2e4a6d', sky2: '#223a58' },
 };
-const HUTS = [[3, 3], [5, 3], [3, 5], [5, 5], [4, 2], [2, 4], [6, 4], [4, 6], [2, 2], [6, 6], [2, 6], [6, 2], [3, 1], [1, 3], [5, 7], [7, 5]];
-const SPOT = { market: [7, 2], tavern: [1, 6], sawmill: [2, 7], fields: [[6, 7], [7, 7], [6, 8], [7, 8]] };
+// Village layout on an 11×11 grid (5,5 is the square)
+const PLAZA = new Set(['5,5', '4,5', '6,5', '5,4', '5,6', '4,4', '6,6']);
+const HUTS = [[3, 4], [3, 6], [7, 4], [4, 3], [6, 3], [7, 6], [4, 7], [6, 7], [3, 2], [2, 4], [2, 6], [8, 3], [3, 8], [8, 7], [2, 2], [7, 2]];
+const SPOT = { market: [7, 3], tavern: [2, 7], sawmill: [2, 3], fields: [[8, 8], [9, 8], [8, 9], [9, 9], [7, 9]], gate: [9, 5], well: [5, 5], bonfire: [4, 5] };
+const ISLAND = (gx, gy) => Math.abs(gx - MID) <= 4 && Math.abs(gy - MID) <= 4;
+const AREAS = {
+  plaza: [[5, 5], [4, 5], [6, 5], [5, 4], [5, 6]],
+  fields: [[8, 8], [9, 8], [8, 9], [9, 9], [7, 8]],
+  gate: [[9, 5], [9, 4], [9, 6], [8, 5]],
+  market: [[7, 3], [6, 2], [8, 2], [7, 2]],
+  outskirts: [[10, 1], [10, 9], [1, 10], [0, 5], [10, 5]],
+};
+const ACTIVITY = {
+  harvest: 'fields', stockpile: 'fields', well: 'plaza', build_fields: 'fields',
+  drill: 'gate', walls: 'gate', mercs: 'gate', parley: 'gate', banditcamp: 'gate', build_palisade: 'gate',
+  festival: 'plaza', fair: 'plaza', tavernnight: 'plaza', bonfire: 'plaza', bard: 'plaza', tinker: 'plaza', shelter: 'plaza', refugees: 'plaza', build_tavern: 'plaza',
+  trade: 'market', caravan: 'market', cards: 'market', barge: 'market', build_market: 'market', build_sawmill: 'market',
+  scout: 'outskirts', prospect: 'outskirts', elk: 'outskirts', salvage: 'outskirts', welcome: 'outskirts',
+};
+const DANCE = new Set(['festival', 'fair', 'tavernnight', 'bonfire', 'bard']);
+const MARCH = new Set(['drill', 'walls', 'mercs']);
 
-function drawDiorama() {
+// Characters people can get to know
+const CAST_LOOK = {
+  marta:  { home: [5, 4], wander: 1.2, draw: (x, y, f) => { px(x - 2, y - 9, 4, 2, '#cfcfd8'); px(x - 1, y - 10, 2, 1, '#cfcfd8'); px(x - 2, y - 7, 4, 2, '#f1c9a0'); px(x - 3, y - 5, 6, 3, '#7b4fa0'); px(x - 2, y - 2, 4, 2, '#5a3b2a'); px(x + 3, y - 4, 1, 5, '#8a6a45'); } },
+  rook:   { home: [9, 5], wander: 1.0, draw: (x, y, f) => { px(x - 2, y - 10, 4, 2, '#b8c2cc'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 3, y - 6, 6, 4, '#3e6fb0'); px(x - 1, y - 5, 2, 2, '#f2c14e'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#2a2a3a'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#2a2a3a'); px(x + 4, y - 13, 1, 13, '#8a6a45'); px(x + 3, y - 15, 3, 2, '#dfe6ee'); } },
+  pip:    { home: [7, 3], wander: 1.4, draw: (x, y, f) => { px(x - 2, y - 12, 4, 3, '#5a3b2a'); px(x - 3, y - 9, 6, 1, '#5a3b2a'); px(x - 2, y - 8, 4, 2, '#f1c9a0'); px(x - 2, y - 6, 4, 4, '#3f9a5a'); px(x + 2, y - 5, 2, 2, '#c99a62'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3a2a20'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3a2a20'); if (f) px(x + 4, y - 9, 1, 1, '#f2c14e'); } },
+  hollis: { home: [8, 8], wander: 1.4, draw: (x, y, f) => { px(x - 4, y - 10, 8, 1, '#e3c45a'); px(x - 2, y - 11, 4, 1, '#e3c45a'); px(x - 2, y - 9, 4, 2, '#e8b88e'); px(x - 2, y - 7, 4, 2, '#c4473a'); px(x - 2, y - 5, 4, 3, '#3b5d8f'); px(x - 2, y - 2, 1, 2 + (f ? 0 : -1), '#3b5d8f'); px(x + 1, y - 2, 1, 2 - (f ? 1 : 0), '#3b5d8f'); px(x - 4, y - 12, 1, 12, '#8a6a45'); px(x - 5, y - 13, 3, 1, '#b8c2cc'); } },
+};
+const IDLE = {
+  marta: ['I\'ve buried two husbands and three mayors. Don\'t make me add you to the list.', 'The young ones think I\'m slow. I\'m not slow. I\'m deliberate.', 'Mind the well. It listens.'],
+  rook: ['Quiet roads make me nervous.', 'Every post on that wall has a name. I named them.', 'Sleep? I\'ll sleep in winter.'],
+  pip: ['Everything has a price, chief. Even advice. This one\'s free.', 'Buy low, sell high, smile always.', 'I counted the coins twice. Then once more, for luck.'],
+  hollis: ['The soil\'s good here. Better than where I came from.', 'You can\'t rush a turnip.', 'Rain\'s coming. Or it isn\'t. The fields don\'t mind either way.'],
+};
+
+let scene = { key: '', statics: [] }, actors = [], cast = {}, riders = [], clouds = [], birds = [], lastT = 0, animOn = true;
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const freeTile = (gx, gy) => !HUTS.some(([a, b]) => a === gx && b === gy);
+
+function buildScene() {
+  const s = G.s, P = PAL[theme], sea = TH().sea, statics = [];
+  const huts = Math.min(HUTS.length, Math.max(4, Math.ceil(s.pop / 2)));
+  HUTS.slice(0, huts).forEach(([gx, gy], i) => statics.push({ gx, gy, draw: (cx, cy, t) => hut(cx, cy, P, i, t) }));
+  const fieldTiles = s.buildings.includes('fields') ? SPOT.fields : SPOT.fields.slice(0, 2);
+  fieldTiles.forEach(([gx, gy]) => statics.push({ gx, gy, flat: true, draw: (cx, cy, t) => sea ? netRack(cx, cy, P) : field(cx, cy, P, gx, gy, t) }));
+  if (s.buildings.includes('market')) statics.push({ gx: SPOT.market[0], gy: SPOT.market[1], draw: (cx, cy, t) => tent(cx, cy, sea ? '#3b6d9a' : '#c4473a', '#f4ecda', t) });
+  if (s.buildings.includes('tavern')) statics.push({ gx: SPOT.tavern[0], gy: SPOT.tavern[1], draw: (cx, cy, t) => tavern(cx, cy, P, t) });
+  if (s.buildings.includes('sawmill')) statics.push({ gx: SPOT.sawmill[0], gy: SPOT.sawmill[1], draw: (cx, cy, t) => sawmill(cx, cy, t) });
+  if (s.well) statics.push({ gx: SPOT.well[0], gy: SPOT.well[1], draw: (cx, cy) => well(cx, cy) });
+  if (s.history.some(h => h.focus === 'bonfire')) statics.push({ gx: SPOT.bonfire[0], gy: SPOT.bonfire[1], draw: (cx, cy, t) => fire(cx, cy, t, 1.4) });
+  if (s.buildings.includes('palisade')) for (let i = 1; i < N - 1; i++) [[i, 1], [1, i], [i, N - 2], [N - 2, i]].forEach(([gx, gy]) => { if (!(gx === 9 && (gy === 5))) statics.push({ gx, gy, z: .6, draw: (cx, cy) => post(cx, cy, P) }); });
+  if (stats(s, G.morning).power >= 45) statics.push({ gx: 8, gy: 5, z: .4, draw: (cx, cy, t) => banner(cx, cy, sea, t) });
+  // trees, and boats on the water for the fleet
+  const taken = new Set(statics.map(o => o.gx + ',' + o.gy));
+  for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
+    const k = gx + ',' + gy; if (taken.has(k) || PLAZA.has(k)) continue;
+    const ring = Math.max(Math.abs(gx - MID), Math.abs(gy - MID));
+    if (sea) { if (!ISLAND(gx, gy) && hash(gx, gy) > .82) statics.push({ gx, gy, draw: (cx, cy, t) => boat(cx, cy, gx * 7 + gy, t) }); else if (ISLAND(gx, gy) && ring === 4 && hash(gy, gx) > .6) statics.push({ gx, gy, draw: (cx, cy, t) => tree(cx, cy, P, gx, gy, t) }); }
+    else if ((ring >= 4 && hash(gx, gy) > .45) || (ring >= 2 && hash(gy * 2, gx * 3) > .95)) statics.push({ gx, gy, draw: (cx, cy, t) => tree(cx, cy, P, gx, gy, t) });
+  }
+  // events everyone shares
+  const day = Math.min(s.day, SEASON.days), ev = SCRIPT[day] && SCRIPT[day].event;
+  if (ev === 'caravan') statics.push({ gx: 9, gy: 2, draw: (cx, cy, t) => wagon(cx, cy, t, sea) });
+  riders = ev === 'raid' ? [0, 1, 2, 3].map(i => ({ a: i * 1.57, r: 6.6 + (i % 2) * .4 })) : [];
+  scene = { statics };
+  syncActors(false);
+}
+
+function randomTile(area) {
+  if (area && AREAS[area]) { const a = AREAS[area]; const [gx, gy] = a[Math.floor(Math.random() * a.length)]; return [gx + (Math.random() - .5) * .8, gy + (Math.random() - .5) * .8]; }
+  for (let k = 0; k < 20; k++) { const gx = 2 + Math.floor(Math.random() * 7), gy = 2 + Math.floor(Math.random() * 7); if (freeTile(gx, gy)) return [gx + (Math.random() - .5) * .6, gy + (Math.random() - .5) * .6]; }
+  return [MID, MID];
+}
+function syncActors(re = true) {
+  const want = Math.min(18, Math.max(4, G.s.pop));
+  while (actors.length < want) { const [x, y] = randomTile(); actors.push({ x, y, tx: x, ty: y, wait: Math.random() * 2, speed: .7 + Math.random() * .5, look: actors.length, bob: Math.random() * 6 }); }
+  actors.length = want;
+  Object.keys(CAST_LOOK).forEach(id => { if (!cast[id]) { const [hx, hy] = CAST_LOOK[id].home; cast[id] = { id, x: hx, y: hy, tx: hx, ty: hy, wait: Math.random() * 3, speed: .55, bob: 0 }; } });
+  if (re) retarget();
+}
+function retarget() {
+  const area = G.choice ? ACTIVITY[G.choice] || (G.choice.startsWith('build_') ? 'market' : null) : null;
+  actors.forEach((a, i) => { a.task = area && i % 5 !== 4 ? area : null; a.wait = Math.random() * .8; });
+  // Pip lives at the square until there's a market
+  CAST_LOOK.pip.home = G.s.buildings.includes('market') ? [7, 3] : [6, 4];
+}
+function stepWalker(a, dt, home, radius) {
+  if (a.wait > 0) { a.wait -= dt; a.moving = false; return; }
+  const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+  if (d < .05) {
+    a.moving = false; a.wait = (a.task ? .6 : 1.2) + Math.random() * 2.5;
+    let nx, ny;
+    if (home) { nx = home[0] + (Math.random() - .5) * 2 * radius; ny = home[1] + (Math.random() - .5) * 2 * radius; }
+    else [nx, ny] = randomTile(a.task);
+    a.tx = Math.max(.5, Math.min(N - 1.5, nx)); a.ty = Math.max(.5, Math.min(N - 1.5, ny));
+    return;
+  }
+  const v = Math.min(d, a.speed * dt); a.x += dx / d * v; a.y += dy / d * v; a.moving = true; a.dir = dx - dy >= 0 ? 1 : -1;
+}
+
+function frame(now) {
+  const t = now / 1000, dt = Math.min(.1, lastT ? t - lastT : 0); lastT = t;
+  if (!reduceMotion) { actors.forEach(a => stepWalker(a, dt)); Object.values(cast).forEach(c => stepWalker(c, dt, CAST_LOOK[c.id].home, CAST_LOOK[c.id].wander)); riders.forEach(r => { r.a += dt * .35; }); }
+  paint(reduceMotion ? 0 : t);
+  placeBubble();
+  if (animOn && !reduceMotion) setTimeout(() => requestAnimationFrame(frame), 55);
+}
+
+function paint(t) {
   const s = G.s, P = PAL[theme], sea = TH().sea;
   const weather = (SCRIPT[Math.min(s.day, SEASON.days)] || {}).weather || 'clear';
-  // sky band
-  for (let y = 0; y < cv.height; y++) px(0, y, cv.width, 1, P.sky2);
-  cv.parentElement.style.background = P.sky2;
-  if (weather === 'storm') { ctx.fillStyle = 'rgba(10,10,25,.35)'; ctx.fillRect(0, 0, cv.width, cv.height); }
-  // stars / sun hint
-  for (let i = 0; i < 18; i++) px(hash(i, 3) * cv.width, hash(i, 9) * 30, 1, 1, weather === 'clear' ? '#f4ecda' : '#55607d');
-  // ground slab edge
+  px(0, 0, cv.width, cv.height, P.sky);
+  for (let y = 0; y < 40; y += 2) px(0, y, cv.width, 2, y < 20 ? P.sky2 : P.sky);
+  cv.parentElement.style.background = P.sky;
+  // stars and clouds
+  for (let i = 0; i < 26; i++) { const tw = Math.sin(t * 2 + i) > .6; px(hash(i, 3) * cv.width, hash(i, 9) * 36, 1, 1, weather === 'clear' ? (tw ? '#ffffff' : '#c9c4e0') : '#55607d'); }
+  for (let i = 0; i < 4; i++) { const x = ((hash(i, 41) * cv.width + t * (3 + i)) % (cv.width + 60)) - 40, y = 6 + i * 7; px(x, y, 26, 3, weather === 'clear' ? 'rgba(220,220,245,.18)' : 'rgba(150,160,190,.35)'); px(x + 6, y - 2, 14, 2, weather === 'clear' ? 'rgba(220,220,245,.18)' : 'rgba(150,160,190,.35)'); }
+  // the ground slab
   for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
-    const [cx, cy] = iso(gx, gy);
-    if (gx === N - 1 || gy === N - 1) { cube(cx, cy + 4, 8, 4, 'rgba(0,0,0,0)', P.edge, P.edge); }
+    if (gx !== N - 1 && gy !== N - 1) continue;
+    const [cx, cy] = iso(gx, gy); cube(cx, cy + 6, HW, 6, 'rgba(0,0,0,0)', P.edge, P.edge2);
   }
-  // tiles
-  const plazaTiles = new Set(['4,4', '3,4', '4,3', '5,4', '4,5']);
   for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
-    const [cx, cy] = iso(gx, gy);
+    const [cx, cy] = iso(gx, gy), k = gx + ',' + gy;
     let c = (gx + gy) % 2 ? P.g1 : P.g2;
-    if (sea && gx >= 2 && gx <= 6 && gy >= 2 && gy <= 6) c = (gx + gy) % 2 ? P.plaza : P.plaza2; // island
-    if (!sea && plazaTiles.has(gx + ',' + gy)) c = (gx + gy) % 2 ? P.plaza : P.plaza2;
-    diamond(cx, cy, 8, 4, c);
-    if (sea && !(gx >= 2 && gx <= 6 && gy >= 2 && gy <= 6) && hash(gx, gy) > .6) px(cx - 2 + hash(gy, gx) * 4, cy, 3, 1, '#8cc6ea');
-    if (weather === 'frost' && hash(gx * 3, gy * 5) > .35) { px(cx - 3, cy - 1, 1, 1, '#ffffff'); px(cx + 2, cy + 1, 1, 1, '#e8f4ff'); }
+    if (sea ? ISLAND(gx, gy) : PLAZA.has(k)) c = (gx + gy) % 2 ? P.plaza : P.plaza2;
+    if (sea && ISLAND(gx, gy) && Math.max(Math.abs(gx - MID), Math.abs(gy - MID)) <= 3 && !PLAZA.has(k)) c = (gx + gy) % 2 ? '#7bb661' : '#88c46b';
+    diamond(cx, cy, HW, HH, c);
+    if (sea && !ISLAND(gx, gy)) { const sh = Math.sin(t * 2 + gx * 1.3 + gy) > .55; if (sh) px(cx - 3 + hash(gy, gx) * 6, cy - 1, 4, 1, '#9fd2f0'); }
+    else if (!PLAZA.has(k) && hash(gx * 5, gy * 3) > .7) px(cx - 4 + hash(gx, gy * 9) * 8, cy - 1, 1, 1, '#8fd16a');
+    if (weather === 'frost' && hash(gx * 3, gy * 5) > .3) { px(cx - 4, cy - 1, 2, 1, '#ffffff'); px(cx + 3, cy + 1, 1, 1, '#e8f4ff'); }
   }
-  // objects, back to front
-  const objs = [];
-  const huts = Math.min(HUTS.length, Math.ceil(s.pop / 2.5));
-  HUTS.slice(0, huts).forEach(([gx, gy], i) => objs.push({ gx, gy, draw: (cx, cy) => sea ? boat(cx, cy, P, i) : hut(cx, cy, P, i) }));
-  if (s.buildings.includes('fields')) SPOT.fields.forEach(([gx, gy]) => objs.push({ gx, gy, flat: true, draw: (cx, cy) => sea ? netRack(cx, cy, P) : field(cx, cy, P) }));
-  else objs.push({ gx: 7, gy: 8, flat: true, draw: (cx, cy) => sea ? netRack(cx, cy, P) : field(cx, cy, P) });
-  if (s.buildings.includes('market')) objs.push({ gx: SPOT.market[0], gy: SPOT.market[1], draw: (cx, cy) => tent(cx, cy, sea ? '#3b6d9a' : '#c4473a', '#f4ecda') });
-  if (s.buildings.includes('tavern')) objs.push({ gx: SPOT.tavern[0], gy: SPOT.tavern[1], draw: (cx, cy) => sea ? bigBoat(cx, cy, P) : tavern(cx, cy, P) });
-  if (s.buildings.includes('sawmill')) objs.push({ gx: SPOT.sawmill[0], gy: SPOT.sawmill[1], draw: (cx, cy) => sawmill(cx, cy, P) });
-  if (s.well) objs.push({ gx: 4, gy: 4, draw: (cx, cy) => { cube(cx, cy, 3, 3, '#5c87b8', '#7d7d7d', '#9a9a9a'); } });
-  if (s.history.some(h => h.focus === 'bonfire')) objs.push({ gx: 4, gy: 3, draw: (cx, cy) => bonfire(cx, cy) });
-  // trees / buoys on free edge tiles
-  const used = new Set(objs.map(o => o.gx + ',' + o.gy));
-  for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
-    const k = gx + ',' + gy;
-    if (used.has(k) || plazaTiles.has(k)) continue;
-    const edgeish = gx < 1 || gy < 1 || gx > 7 || gy > 7 || (gx === 0 || gy === 0);
-    if ((edgeish && hash(gx, gy) > .45) || hash(gy * 2, gx * 3) > .93) objs.push({ gx, gy, draw: (cx, cy) => sea ? rock(cx, cy, gx, gy) : tree(cx, cy, P, gx, gy) });
+  // everything that stands up, back to front
+  const items = scene.statics.slice();
+  actors.forEach((a, i) => items.push({ gx: a.x, gy: a.y, z: .3, draw: (cx, cy) => villager(cx, cy, a, i, t) }));
+  Object.values(cast).forEach(c => items.push({ gx: c.x, gy: c.y, z: .35, draw: (cx, cy) => { CAST_LOOK[c.id].draw(cx, cy - (c.moving ? (Math.sin(t * 10) > 0 ? 1 : 0) : 0), c.moving && Math.sin(t * 10) > 0); if (c.id === bubbleWho) px(cx - 1, cy - 18 + Math.round(Math.sin(t * 4)), 2, 2, '#f2c14e'); } }));
+  riders.forEach((r, i) => items.push({ gx: MID + Math.cos(r.a) * r.r, gy: MID + Math.sin(r.a) * r.r, z: .3, draw: (cx, cy) => rider(cx, cy, t, i) }));
+  items.sort((a, b) => (a.gx + a.gy + (a.z || 0) - (a.flat ? .5 : 0)) - (b.gx + b.gy + (b.z || 0) - (b.flat ? .5 : 0)));
+  items.forEach(o => { const [cx, cy] = iso(o.gx, o.gy); o.draw(cx, cy, t); });
+  // birds on clear days
+  if (weather === 'clear') for (let i = 0; i < 3; i++) { const x = (t * 14 + i * 90) % (cv.width + 40) - 20, y = 22 + i * 6 + Math.sin(t * 2 + i) * 3, w = Math.sin(t * 9 + i) > 0; px(x, y, 1, 1, '#1c1932'); px(x - 2, y - (w ? 1 : 0), 2, 1, '#1c1932'); px(x + 1, y - (w ? 1 : 0), 2, 1, '#1c1932'); }
+  // weather
+  if (weather === 'rain' || weather === 'storm') {
+    const n = weather === 'storm' ? 170 : 90, sp = weather === 'storm' ? 210 : 140;
+    for (let i = 0; i < n; i++) { const x = (hash(i, 11) * cv.width + t * (weather === 'storm' ? 60 : 20)) % cv.width, y = (hash(i, 17) * cv.height + t * sp) % cv.height; px(x, y, 1, 3, weather === 'storm' ? '#a9c7ff' : '#8fb4e8'); }
   }
-  // palisade / breakwater posts on the perimeter
-  if (s.buildings.includes('palisade')) for (let i = 0; i < N; i++) { [[i, 0], [0, i], [i, N - 1], [N - 1, i]].forEach(([gx, gy]) => objs.push({ gx, gy, z: .5, draw: (cx, cy) => post(cx, cy, P) })); }
-  // people
-  const folk = Math.min(14, Math.round(s.pop / 2));
-  for (let i = 0; i < folk; i++) { const gx = 3 + hash(i, 1) * 3, gy = 3 + hash(i, 2) * 3; objs.push({ gx, gy, z: .3, draw: (cx, cy) => person(cx, cy, i) }); }
-  // banner when strong
-  if (stats(s, G.morning).power >= 45) objs.push({ gx: 4, gy: 7, draw: (cx, cy) => banner(cx, cy, sea) });
-  objs.sort((a, b) => (a.gx + a.gy + (a.z || 0) - (a.flat ? .5 : 0)) - (b.gx + b.gy + (b.z || 0) - (b.flat ? .5 : 0)));
-  objs.forEach(o => { const [cx, cy] = iso(o.gx, o.gy); o.draw(cx, cy); });
-  // weather overlay
-  if (weather === 'rain' || weather === 'storm') for (let i = 0; i < (weather === 'storm' ? 140 : 70); i++) { const x = hash(i, 11) * cv.width, y = hash(i, 17) * cv.height; px(x, y, 1, 3, weather === 'storm' ? '#a9c7ff' : '#8fb4e8'); }
-  if (weather === 'storm') { px(150, 6, 1, 6, '#fff4a8'); px(151, 12, 1, 5, '#fff4a8'); px(150, 17, 1, 4, '#fff4a8'); }
-  if (weather === 'frost') for (let i = 0; i < 40; i++) px(hash(i, 23) * cv.width, hash(i, 29) * cv.height, 1, 1, '#ffffff');
+  if (weather === 'storm') { ctx.fillStyle = 'rgba(10,10,25,.25)'; ctx.fillRect(0, 0, cv.width, cv.height); if (Math.sin(t * 1.3) > .985) { ctx.fillStyle = 'rgba(255,255,230,.45)'; ctx.fillRect(0, 0, cv.width, cv.height); px(240, 4, 1, 8, '#fff4a8'); px(241, 12, 1, 6, '#fff4a8'); px(240, 18, 1, 5, '#fff4a8'); } }
+  if (weather === 'frost') for (let i = 0; i < 60; i++) { const x = (hash(i, 23) * cv.width + Math.sin(t + i) * 6) % cv.width, y = (hash(i, 29) * cv.height + t * 12) % cv.height; px(x, y, 1, 1, '#ffffff'); }
 }
-function hut(cx, cy, P, i) { cube(cx, cy + 1, 5, 5, P.wallT, P.wallL, P.wallR); roof(cx, cy - 4, 6, P.roof1, P.roof2); px(cx - 3, cy + 1, 1, 2, '#3a2412'); if (i % 3 === 0) px(cx + 2, cy - 1, 1, 1, '#ffe08a'); }
-function boat(cx, cy, P, i) { cube(cx, cy + 2, 5, 2, '#8a5a2f', '#5e3a1c', '#76482a'); px(cx, cy - 8, 1, 9, '#4a3020'); for (let k = 0; k < 6; k++) px(cx + 1, cy - 8 + k, 4 - (k >> 1), 1, i % 2 ? '#f4ecda' : '#e9d3a8'); }
-function bigBoat(cx, cy, P) { cube(cx, cy + 2, 7, 3, '#8a5a2f', '#5e3a1c', '#76482a'); px(cx - 2, cy - 12, 1, 13, '#4a3020'); px(cx + 2, cy - 10, 1, 11, '#4a3020'); for (let k = 0; k < 8; k++) { px(cx - 1, cy - 12 + k, 5 - (k >> 1), 1, '#f4ecda'); } px(cx - 2, cy - 14, 3, 2, '#d64545'); }
-function field(cx, cy, P) { diamond(cx, cy, 8, 4, P.field); for (let k = -3; k < 4; k += 2) px(cx - 6 + Math.abs(k), cy + k, 12 - 2 * Math.abs(k), 1, P.furrow); }
-function netRack(cx, cy, P) { diamond(cx, cy, 8, 4, P.field); px(cx - 5, cy - 6, 1, 6, P.furrow); px(cx + 5, cy - 6, 1, 6, P.furrow); for (let k = 0; k < 4; k++) for (let x = -4; x < 5; x += 2) px(cx + x, cy - 5 + k, 1, 1, '#d9d2b8'); }
-function tent(cx, cy, c1, c2) { cube(cx, cy + 1, 6, 3, c2, '#a99a7a', '#c7b896'); for (let k = 0; k < 5; k++) diamond(cx, cy - 2 - k, 7 - k, Math.max(1, (7 - k) >> 1), k % 2 ? c2 : c1); px(cx, cy - 9, 1, 3, '#4a3020'); px(cx + 1, cy - 9, 2, 1, '#f2c14e'); }
-function tavern(cx, cy, P) { cube(cx, cy + 1, 7, 8, P.wallT, P.wallL, P.wallR); roof(cx, cy - 7, 8, '#7a3b8f', '#9b4fb3'); px(cx + 3, cy - 3, 2, 2, '#ffe08a'); px(cx - 5, cy - 2, 2, 2, '#ffe08a'); px(cx + 6, cy - 6, 3, 2, '#f2c14e'); }
-function sawmill(cx, cy, P) { cube(cx, cy + 1, 6, 5, '#9a7a55', '#6e5236', '#87664a'); px(cx + 4, cy - 1, 4, 2, '#c99a62'); px(cx + 4, cy + 1, 4, 2, '#b07f4a'); px(cx - 2, cy - 8, 2, 4, '#5a5a5a'); }
-function tree(cx, cy, P, gx, gy) { const h = 3 + Math.floor(hash(gx, gy) * 3); px(cx, cy - h, 1, h + 1, P.trunk); diamond(cx, cy - h - 2, 4, 3, P.tree1); diamond(cx, cy - h - 4, 3, 2, P.tree2); }
-function rock(cx, cy, gx, gy) { if (hash(gx, gy) > .5) { px(cx - 1, cy - 4, 1, 5, '#d64545'); px(cx - 1, cy - 5, 2, 1, '#ffffff'); } else cube(cx, cy + 1, 3, 2, '#9aa3ad', '#6c747d', '#838c96'); }
-function post(cx, cy, P) { px(cx, cy - 5, 2, 6, P.post); px(cx, cy - 6, 2, 1, P.postT); }
-function person(cx, cy, i) { const cols = ['#ff8fab', '#7cc6f5', '#f2c14e', '#8fd16a', '#f4ecda']; px(cx, cy - 3, 1, 1, '#f1c9a0'); px(cx, cy - 2, 1, 2, cols.at(i % cols.length)); }
-function bonfire(cx, cy) { px(cx - 2, cy, 5, 1, '#6b4226'); px(cx - 1, cy - 3, 3, 3, '#ff9a3c'); px(cx, cy - 5, 1, 2, '#ffd36b'); }
-function banner(cx, cy, sea) { px(cx, cy - 12, 1, 13, '#4a3020'); for (let k = 0; k < 4; k++) px(cx + 1, cy - 12 + k, 5, 1, sea ? '#d64545' : '#c4473a'); px(cx + 2, cy - 11, 2, 2, '#f2c14e'); }
+
+// sprites
+function hut(cx, cy, P, i, t) {
+  cube(cx, cy + 1, 8, 7, P.wallT, P.wallL, P.wallR); roof(cx, cy - 6, 9, P.roof1, P.roof2);
+  px(cx - 4, cy, 2, 3, '#3a2412'); px(cx + 3, cy - 3, 2, 2, i % 2 ? '#ffe08a' : '#6b4a2a');
+  if (i % 3 === 0) { px(cx + 4, cy - 12, 2, 4, '#7d6a5a'); for (let k = 0; k < 3; k++) { const ph = (t * .6 + k / 3 + i * .17) % 1; px(cx + 4 + Math.sin(ph * 6 + i) * 2, cy - 14 - ph * 14, 2, 2, `rgba(220,220,230,${.55 * (1 - ph)})`); } }
+}
+function boat(cx, cy, seed, t) { const b = Math.round(Math.sin(t * 2 + seed) * 1); cube(cx, cy + 2 + b, 7, 3, '#8a5a2f', '#5e3a1c', '#76482a'); px(cx, cy - 12 + b, 1, 13, '#4a3020'); for (let k = 0; k < 9; k++) px(cx + 1, cy - 12 + k + b, 6 - (k >> 1), 1, seed % 2 ? '#f4ecda' : '#e9d3a8'); }
+function field(cx, cy, P, gx, gy, t) { diamond(cx, cy, HW, HH, P.field); for (let k = -4; k < 5; k += 2) px(cx - 9 + Math.abs(k) * 1.5, cy + k, 18 - 3 * Math.abs(k), 1, P.furrow); for (let k = 0; k < 5; k++) { const sx = cx - 6 + k * 3, sy = cy - 2 + (k % 2) * 3, sw = Math.sin(t * 2 + k + gx) > 0 ? 1 : 0; px(sx + sw, sy - 3, 1, 3, '#f0d76e'); } }
+function netRack(cx, cy, P) { diamond(cx, cy, HW, HH, P.field); px(cx - 7, cy - 8, 1, 8, P.furrow); px(cx + 7, cy - 8, 1, 8, P.furrow); for (let k = 0; k < 5; k++) for (let x = -6; x < 7; x += 2) px(cx + x, cy - 7 + k, 1, 1, '#d9d2b8'); }
+function tent(cx, cy, c1, c2, t) { cube(cx, cy + 1, 9, 4, c2, '#a99a7a', '#c7b896'); for (let k = 0; k < 7; k++) diamond(cx, cy - 3 - k, 10 - k, Math.max(1, (10 - k) >> 1), k % 2 ? c2 : c1); px(cx, cy - 14, 1, 4, '#4a3020'); px(cx + 1, cy - 14 + (Math.sin(t * 5) > 0 ? 0 : 1), 3, 2, '#f2c14e'); }
+function tavern(cx, cy, P, t) { cube(cx, cy + 1, 10, 11, P.wallT, P.wallL, P.wallR); roof(cx, cy - 10, 11, '#7a3b8f', '#9b4fb3'); const fl = Math.sin(t * 7) > 0 ? '#ffe08a' : '#ffc95e'; px(cx + 4, cy - 5, 3, 3, fl); px(cx - 7, cy - 4, 3, 3, fl); px(cx + 9, cy - 9, 4, 3, '#f2c14e'); }
+function sawmill(cx, cy, t) { cube(cx, cy + 1, 9, 7, '#9a7a55', '#6e5236', '#87664a'); const a = t * 3; for (let k = 0; k < 4; k++) px(cx + 9 + Math.cos(a + k * 1.57) * 4, cy - 3 + Math.sin(a + k * 1.57) * 4, 2, 2, '#c99a62'); px(cx + 9, cy - 3, 2, 2, '#5a3b2a'); px(cx - 3, cy - 12, 3, 5, '#5a5a5a'); }
+function well(cx, cy) { cube(cx, cy, 5, 4, '#5c87b8', '#7d7d7d', '#9a9a9a'); px(cx - 5, cy - 10, 1, 7, '#6b4226'); px(cx + 4, cy - 10, 1, 7, '#6b4226'); px(cx - 5, cy - 11, 10, 2, '#a8743f'); }
+function tree(cx, cy, P, gx, gy, t) { const h = 5 + Math.floor(hash(gx, gy) * 4), sw = Math.round(Math.sin(t * 1.5 + gx + gy) * .8); px(cx, cy - h, 2, h + 1, P.trunk); diamond(cx + sw, cy - h - 3, 6, 4, P.tree1); diamond(cx + sw, cy - h - 6, 5, 3, P.tree2); diamond(cx + sw, cy - h - 9, 3, 2, P.tree2); }
+function post(cx, cy, P) { px(cx, cy - 8, 3, 9, P.post); px(cx, cy - 9, 3, 1, P.postT); }
+function fire(cx, cy, t, s = 1) { px(cx - 4, cy, 9, 2, '#6b4226'); for (let k = 0; k < 4; k++) { const h = (3 + ((t * 9 + k * 3) % 4)) * s; px(cx - 3 + k * 2, cy - h, 2, h, k % 2 ? '#ff9a3c' : '#ffd36b'); } }
+function banner(cx, cy, sea, t) { px(cx, cy - 18, 1, 19, '#4a3020'); for (let k = 0; k < 6; k++) px(cx + 1, cy - 18 + k, 7 + Math.round(Math.sin(t * 4 + k * .6)), 1, sea ? '#d64545' : '#c4473a'); px(cx + 3, cy - 17, 2, 2, '#f2c14e'); }
+function wagon(cx, cy, t, sea) { if (sea) return boat(cx, cy, 3, t); cube(cx, cy, 10, 5, '#c7b896', '#8a5a2f', '#a06a3a'); for (let k = 0; k < 4; k++) diamond(cx, cy - 6 - k, 10 - k * 2, Math.max(1, 5 - k), '#efe6d0'); px(cx - 8, cy + 2, 3, 3, '#3a2412'); px(cx + 6, cy + 2, 3, 3, '#3a2412'); px(cx + 12, cy - 4, 4, 4, '#b8935c'); px(cx + 15, cy - 7 + (Math.sin(t * 3) > 0 ? 0 : 1), 2, 3, '#b8935c'); }
+function villager(cx, cy, a, i, t) {
+  const SH = ['#ff8fab', '#7cc6f5', '#f2c14e', '#8fd16a', '#f4ecda', '#c792ea', '#ffb17a'], HR = ['#3a2412', '#7a4a1c', '#e3c45a', '#1c1932', '#a0522d'];
+  const busy = a.task && !a.moving && G.choice, hop = busy && DANCE.has(G.choice) ? (Math.sin(t * 8 + i) > 0 ? 2 : 0) : 0;
+  const step = a.moving && Math.sin(t * 10 + i) > 0;
+  const y = cy - hop - (a.moving && step ? 1 : 0);
+  px(cx - 1, y - 7, 3, 1, HR.at(i % HR.length)); px(cx - 1, y - 6, 3, 2, '#f1c9a0'); px(cx - 1, y - 4, 3, 3, SH.at(i % SH.length));
+  px(cx - 1, y - 1, 1, step ? 1 : 2, '#2a2a3a'); px(cx + 1, y - 1, 1, step ? 2 : 1, '#2a2a3a');
+  if (busy && MARCH.has(G.choice)) { px(cx + 2, y - 10, 1, 10, '#8a6a45'); px(cx + 2, y - 11, 1, 1, '#dfe6ee'); }
+  if (busy && G.choice === 'harvest' && Math.sin(t * 6 + i) > 0) px(cx - 3, y - 4, 2, 1, '#b8c2cc');
+  if (busy && DANCE.has(G.choice) && i % 3 === 0) px(cx, y - 11, 1, 1, ['#f2c14e', '#ff8fab', '#7cc6f5'].at(Math.floor(t * 3 + i) % 3));
+}
+function rider(cx, cy, t, i) { const b = Math.sin(t * 9 + i) > 0 ? 1 : 0; px(cx - 4, cy - 5 - b, 8, 4, '#4a2a1a'); px(cx + 3, cy - 8 - b, 2, 3, '#4a2a1a'); px(cx - 3, cy - 1, 1, 2 - b, '#2a1a10'); px(cx + 2, cy - 1, 1, 1 + b, '#2a1a10'); px(cx - 1, cy - 10 - b, 3, 5, '#a8322a'); px(cx - 1, cy - 12 - b, 3, 2, '#2a2a3a'); px(cx + 3, cy - 14 - b, 1, 7, '#b8c2cc'); }
+
+// ---------- Speech bubbles: the council speaks from the map ----------
+let bubbleWho = null, bubbleText = '', bubbleMore = 0, voiceIdx = 0, voicesNow = [];
+function setVoices(v) { voicesNow = v; if (voiceIdx >= v.length) voiceIdx = 0; showVoice(); }
+function showVoice() {
+  const v = voicesNow[voiceIdx];
+  if (!v) { bubbleWho = null; $('council').hidden = true; return; }
+  bubbleWho = v.who;
+  $('council').hidden = false;
+  $('council').innerHTML = `<b>${esc(v.name)}</b> <small>${esc(T(v.role))}</small><p>${esc(T(v.line))}</p>${voicesNow.length > 1 ? `<button class="more" id="voiceMore" aria-label="Next council member">${voiceIdx + 1}/${voicesNow.length} ›</button>` : ''}`;
+  if ($('voiceMore')) $('voiceMore').onclick = e => { e.stopPropagation(); voiceIdx = (voiceIdx + 1) % voicesNow.length; showVoice(); };
+  placeBubble();
+}
+function placeBubble() {
+  const el = $('council'); if (el.hidden || !bubbleWho || !cast[bubbleWho]) return;
+  const c = cast[bubbleWho], [sx, sy] = iso(c.x, c.y), r = cv.getBoundingClientRect(), k = r.width / cv.width;
+  const w = el.offsetWidth, stageW = cv.parentElement.clientWidth;
+  let left = sx * k - w / 2; left = Math.max(6, Math.min(stageW - w - 6, left));
+  let top = (sy - 20) * k - el.offsetHeight - 6;
+  el.classList.toggle('below', top < 4);
+  if (top < 4) top = (sy + 4) * k + 8;
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+  el.style.setProperty('--tail', Math.max(14, Math.min(w - 14, sx * k - left)) + 'px');
+}
+cv.addEventListener('click', e => {
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+  const hit = Object.values(cast).find(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 16 && y < sy + 3; });
+  if (!hit) return;
+  const i = voicesNow.findIndex(v => v.who === hit.id);
+  if (i >= 0) { voiceIdx = i; showVoice(); return; }
+  const lines = IDLE[hit.id], c = CAST[hit.id];
+  voicesNow = voicesNow.concat([{ ...c, who: hit.id, line: lines[Math.floor(Math.random() * lines.length)] }]);
+  voiceIdx = voicesNow.length - 1; showVoice();
+});
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+  cv.style.cursor = Object.values(cast).some(c => { const [sx, sy] = iso(c.x, c.y); return x > sx - 6 && x < sx + 6 && y > sy - 16 && y < sy + 3; }) ? 'pointer' : 'default';
+});
+window.addEventListener('resize', placeBubble);
+$('council').addEventListener('click', () => { $('council').hidden = true; bubbleWho = null; });
+$('council').title = 'Tap to close. Tap anyone in the village to hear from them.';
+function startDiorama() { if (!reduceMotion) requestAnimationFrame(frame); }
+function drawDiorama() { buildScene(); if (reduceMotion) { paint(0); placeBubble(); } }
 
 // ---------------------------------------------------------------------------
 // Rendering the page
@@ -943,7 +1111,7 @@ function moodWhy(kind, st, s) {
   return (big[1] >= 0 ? 'Helped most by: ' : 'Held back by: ') + lbl.toLowerCase();
 }
 
-let buildOpen = false, voiceAll = false;
+let buildOpen = false, lastVoiceKey = '', lastChoice = undefined;
 const ORDER_WORDS = { work: ['Easy work', 'Steady work', 'Hard work'], table: ['Lean table', 'Normal table', 'Feasts'], gates: ['Open gates', 'Watched gates', 'Shut gates'], guard: ['No guard', 'Patrols', 'Garrison'] };
 const SQ = { best: '🟩', solid: '🟨', weak: '🟥' };
 const gridLine = () => Array.from({ length: SEASON.days }, (_, i) => G.grades[i + 1] ? SQ[G.grades[i + 1].grade] : '⬛').join('');
@@ -968,10 +1136,9 @@ function render() {
   ].map(([l, w, c, v, max, why]) => `<div class="mood" title="${esc(T(why))}"><span class="lbl">${esc(l.toUpperCase())}</span><span class="word" style="color:${c}">${esc(T(w))}</span><span class="pips">${pips(v, max, c)}</span></div>`).join('');
 
   // One voice from the council (the most urgent); the rest on request
-  const voices = council(s, G.morning);
-  const shown = voiceAll ? voices : voices.slice(0, 1);
-  $('council').innerHTML = shown.map((c, i) => `<span class="face" aria-hidden="true">${c.face}</span><p><b>${esc(c.name)}:</b> ${esc(T(c.line))}${i === shown.length - 1 && voices.length > 1 ? ` <button class="more" id="voiceMore">${voiceAll ? 'Less' : `+${voices.length - 1} more`}</button>` : ''}</p>`).join('');
-  if ($('voiceMore')) $('voiceMore').onclick = () => { voiceAll = !voiceAll; render(); };
+  const vk = day + theme;
+  if (vk !== lastVoiceKey) { lastVoiceKey = vk; voiceIdx = 0; setVoices(council(s, G.morning)); }
+  if (G.choice !== lastChoice) { lastChoice = G.choice; retarget(); }
 
   // Coming up: a strip of short chips
   const horizon = Math.max(day + 2, s.scoutedUntil);
@@ -984,8 +1151,7 @@ function render() {
 
   // Headline + orders summary (dials open on request)
   $('headline').textContent = TH().headlines[day] || T(SCRIPT[day].headline);
-  $('ordersSummary').textContent = DIALS.map(d => ORDER_WORDS[d.id][G.orders[d.id]]).join(' · ');
-  $('dials').innerHTML = DIALS.map(d => `<div class="dial"><div class="nm"><span>${esc(dialName(d))}</span></div>
+  $('dials').innerHTML = DIALS.map(d => `<div class="dial"><span class="nm">${esc(dialName(d))}</span>
     <div class="seg" role="group" aria-label="${esc(dialName(d))}">${d.opts.map((o, i) => `<button id="dial-${d.id}-${i}" data-dial="${d.id}" data-i="${i}" aria-pressed="${G.orders[d.id] === i}">${o}</button>`).join('')}</div>
     <span class="arrows">${esc(T(d.arrows[G.orders[d.id]]))}</span></div>`).join('');
   $('dials').querySelectorAll('[data-dial]').forEach(b => b.onclick = () => { G.orders[b.dataset.dial] = +b.dataset.i; render(); });
@@ -1125,7 +1291,7 @@ function wireSummary() {
 }
 
 $('endDay').onclick = endDay;
-$('ordersToggle').onclick = () => { const d = $('dials'); d.hidden = !d.hidden; $('ordersToggle').setAttribute('aria-expanded', !d.hidden); $('ordersToggle').querySelector('.chev').textContent = d.hidden ? 'Change' : 'Done'; };
+
 ['frontier', 'fleet'].forEach(t => $('th-' + t).onclick = () => { theme = t; $('th-frontier').setAttribute('aria-pressed', t === 'frontier'); $('th-fleet').setAttribute('aria-pressed', t === 'fleet'); render(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('overlay').hidden && $('nextDay')) $('nextDay').click(); });
 
@@ -1135,9 +1301,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('overla
 const TOUR = [
   { title: 'Welcome, chief', text: 'You lead a small frontier village for thirty days (this prototype is one week). Each day you make one big choice. At the end, your village is ranked against everyone else\'s.', start: true },
   { target: 'moods', title: 'How your village is doing', text: 'Keep Harmony, Power and Wealth healthy, and keep food in the stores. Your score multiplies them together, so one weak spot drags everything down.' },
-  { target: ['council', 'board'], title: 'Your clues', text: 'Your council tells you what\'s worrying them, and the forecast shows what\'s coming. Read them before you choose. They point to the best move.' },
+  { target: ['stage', 'board'], title: 'Your village and your clues', text: 'Your council lives in the village. Whoever is most worried speaks up, and you can tap anyone to hear from them. The forecast below shows what\'s coming. Together they point to the best move.' },
   { target: 'cards', title: 'Pick one Focus', text: 'This is the day\'s big decision. Tap a card to read more. TODAY cards vanish tomorrow. 🎲 cards are gambles with the odds shown.' },
-  { target: 'orders', title: 'Your standing orders', text: 'These run everything you don\'t focus on: how hard people work, how well they eat, who gets through the gates, and how strong your guard is. Set them and leave them, or change them when things change.' },
+  { target: 'orders', title: 'Your standing orders', text: 'These four dials run everything you don\'t focus on: how hard people work, how well they eat, who gets through the gates, and how strong your guard is. Set them and leave them, or change them when things change.' },
   { target: 'endDay', title: 'End the day', text: 'See what happened, how everyone else chose, and whether you found the best move. Try to fill your season with 🟩.', last: true },
 ];
 let tourAt = -1, tourEls = [], dim = null;
@@ -1184,6 +1350,7 @@ window.addEventListener('resize', () => { if (tourAt >= 0) showTour(tourAt); });
 let seenTour = false;
 try { seenTour = localStorage.getItem('thirtydays-tour-seen') === '1'; } catch (e) { seenTour = false; }
 newGame(20261023);
+startDiorama();
 if (!seenTour) showTour(0);
 </script>
 
