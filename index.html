@@ -304,6 +304,15 @@ details.mini ul { margin: 6px 0 0; padding-left: 18px; font-size: .9rem; display
 .lb tr.me td { color: var(--seal); font-weight: 700; }
 pre.share { margin: 0; padding: 10px 12px; background: #fbf4e2; border: 2px dashed var(--ink-soft); font-family: var(--font-text); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; font-size: .95rem; }
 .steps { margin: 0; padding-left: 22px; display: grid; gap: 7px; font-size: 1rem; line-height: 1.4; }
+.guide { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0 14px; }
+.gbox { background: #fbf4e2; border: 2px solid var(--ink-soft); padding: 10px 12px; }
+.gbox.new { border-color: var(--seal); background: #fdf0e0; }
+.gbox h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 7px; font-size: 1.05rem; }
+.gbox h4 .px { width: 18px; height: 18px; flex: none; }
+.gbox.new h4 { color: var(--seal); }
+.gbox p { margin: 0; font-size: .95rem; line-height: 1.4; }
+.glist { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: .95rem; line-height: 1.35; }
+@media (max-width: 640px) { .guide { grid-template-columns: 1fr; } }
 .linkbtn { display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; }
 .linkbtn:hover { background: var(--paper-2); }
 .fine { margin: 0; font-size: .85rem; color: var(--ink-soft); font-style: italic; text-align: center; }
@@ -3431,15 +3440,31 @@ function showFeedback() {
 function showAlphaGuide() {
   closeNote(); hideBubble();
   $('sheet').innerHTML = `<header class="mast"><h3 id="sheetTitle">Welcome, alpha tester</h3><p><span>${BUILD}</span><span>You're one of the first ten</span></p></header>
-    <p class="lead">Thanks for finishing a month! New in Alpha 5.2: Artistry's monument now follows the same rules as every great work. It can rise to two-thirds any time, but its final stage opens only from day 18, once Artistry's trials are passed and it leads your village. The Best move box now explains itself, the townsfolk have far more to say, and your month has been reset for a fresh start. Each setting off the middle suits two paths (see the ledger), each path has three trials, and passing them opens its great work: tap your path, top left, for the Play styles page.</p>
-    <p class="lead">A few things that work differently in the test:</p>
-    <ol class="steps">
-      <li><b>Play at your own speed.</b> The real game gives you one day per real day. In the test, as soon as you end a day, the next one starts. Play one day or all thirty in a sitting.</li>
-      <li><b>Skip ahead whenever you want.</b> Under the End day button are <b>Skip a day</b> and <b>Skip 5 days</b>. Your standing orders run those days without a Focus, so you can jump to the drought, the fever or the warband quickly.</li>
-      <li><b>Start over any time.</b> <b>New season</b> resets the month with a new village. Try a different path each time: a pacifist, a smuggler, a rancher.</li>
-      <li><b>Your game saves itself.</b> Close the tab and come back later; you'll be right where you left off.</li>
-      <li><b>Please, please send feedback.</b> Tap the <b>speech bubble</b> at the top any time. Copy your tester report and paste it into the form with anything you noticed. Bugs, confusion, boredom, favourite moments: all of it helps.</li>
-    </ol>
+    <div class="guide">
+      <section class="gbox new"><h4>${icon('star', 18)}What's new in Alpha 5.2</h4>
+        <ul class="glist">
+          <li><b>Fresh start.</b> Thanks for finishing a month! Your village has been reset.</li>
+          <li><b>Artistry's monument</b> now follows the great-work rules: it stops at two-thirds until day 18 and your three trials.</li>
+          <li><b>Smarter Best move box.</b> It says when moves were tied, and why you missed.</li>
+          <li><b>Chattier townsfolk.</b> The council and villagers talk about what's happening.</li>
+        </ul></section>
+      <section class="gbox"><h4>${icon('book', 18)}How a month works</h4>
+        <ul class="glist">
+          <li><b>One Focus a day.</b> Pick a card, set your dials, end the day.</li>
+          <li><b>Dials suit paths.</b> Each setting off the middle helps two paths. The ledger shows which.</li>
+          <li><b>Follow a path to go Legendary.</b> Pass its three trials, then build its great work from day 18.</li>
+          <li><b>Play styles</b> shows how each path plays: tap your path, top left.</li>
+        </ul></section>
+      <section class="gbox"><h4>${icon('compass', 18)}Testing tips</h4>
+        <ul class="glist">
+          <li><b>Play at your own speed.</b> The next day starts as soon as you end one.</li>
+          <li><b>Skip a day / Skip 5 days</b> under the End day button jump ahead on your standing orders.</li>
+          <li><b>New season</b> starts over with a new village. Try a different path each time.</li>
+          <li><b>Your game saves itself.</b> Close the tab any time.</li>
+        </ul></section>
+      <section class="gbox ask"><h4>${icon('speech', 18)}Please send feedback</h4>
+        <p>Tap the <b>speech bubble</b> at the top any time. Copy your tester report into the form with anything you noticed: bugs, confusion, boredom, favourite moments. All of it helps.</p></section>
+    </div>
     <div class="row2"><button class="morning" id="alphaGo">Start playing</button><a class="plain linkbtn" href="${FEEDBACK_URL}" target="_blank" rel="noopener">Open the feedback form</a></div>`;
   $('overlay').hidden = false; $('overlay').scrollTop = 0;
   $('alphaGo').onclick = () => { $('overlay').hidden = true; try { localStorage.setItem(ALPHA_KEY, '1'); } catch (e) { /* storage unavailable */ } };
