@@ -161,6 +161,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--brass)
 .conds[hidden] { display: none; }
 .cond { display: inline-flex; align-items: center; gap: 5px; font: 700 .8rem/1 var(--font-pixel); color: var(--ink); background: #f3e3bf; border: 2px solid var(--ink-soft); padding: 4px 8px 4px 6px; cursor: pointer; }
 .cond .px { width: 16px; height: 16px; }
+.you.tip { color: var(--seal); font-style: italic; }
 .dialhint { margin: 2px 0 6px; font-family: var(--font-text); font-style: italic; font-size: .9rem; color: var(--seal); }
 .dialhint[hidden] { display: none; }
 .trials { margin: 6px 0; } .trials p { margin: 2px 0; } .trials ul { list-style: none; margin: 2px 0; padding: 0; } .trials li { font-size: .92rem; } .trials li.done { color: var(--good); }
@@ -648,6 +649,12 @@ const trialsDone = (s, p) => ((s.trials || {})[p] || []).length;
 const LEGEND_BONUS = 0.6, FOCUS_MIN = 0.40, FOCUS_FULL = 0.65, GREAT_WORK_OPEN = 18;
 function focusShare(s, p) { const rn = s.renown || {}, total = Object.values(rn).reduce((x, y) => x + y, 0); p = p || renownSorted(rn)[0][0]; return total ? Math.min(1, (rn[p] || 0) / total * (V('Z') && p === 'craft' ? 1.6 : 1)) : 0; }
 const legendScale = s => Math.max(0, Math.min(1, (focusShare(s) - FOCUS_MIN) / (FOCUS_FULL - FOCUS_MIN)));
+// Alpha 5.2: Artistry's great work (the monument) follows the same rules as every other great work.
+// It can climb to two-thirds any time; the final third opens from day 18, once Artistry's trials are passed
+// and Artistry leads the village at 40%+ focus, and only the Great work card can lay the last stone.
+const MONUMENT_WAIT = 66;
+const monumentOpen = s => !V('J') || (s.day >= GREAT_WORK_OPEN && trialsDone(s, 'artisan') >= 3 && renownSorted(s.renown || {})[0][0] === 'artisan' && focusShare(s, 'artisan') >= FOCUS_MIN);
+const monumentCap = (s, byCard) => monumentOpen(s) ? (byCard ? 100 : 99) : MONUMENT_WAIT;
 const DIALS = [
   { id: 'work',  name: 'Work',  opts: ['Easy', 'Steady', 'Hard'],
     arrows: ['Output ↓ · Gold ↓ · Harmony ↑↑', 'Steady', 'Output ↑ · Gold ↑ · Harmony ↓↓, worse every hard day'],
@@ -796,29 +803,29 @@ const CAST = {
 const W_ = d => SCRIPT[d] || {};
 const COUNCIL = [
   { who: 'hollis', p: 9, when: (s, st) => st.foodDays < 1, line: 'We\'re eating the seed grain. If nothing changes, families will start leaving.' },
-  { who: 'hollis', p: 6, when: (s, st) => st.foodDays < 2.5, line: 'The granary\'s getting thin. One bad day and we\'re in trouble.' },
+  { who: 'hollis', p: 6, when: (s, st) => st.foodDays < 2.5, line: ['The granary\'s getting thin. One bad day and we\'re in trouble.', 'Stores are running low, chief. I wouldn\'t let them slip further.', 'We\'re down to a few days of food. Worth a thought.'] },
   { who: 'hollis', p: 7, when: (s, st, o, d) => W_(d + 1).weather === 'storm' && s.scoutedUntil >= d + 1, line: 'Word is a storm hits tomorrow. Whatever we need from outside, we\'d best grab it today.' },
   { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).weather === 'storm', line: 'This storm is flattening everything. Nothing will grow today, whatever we do.' },
   { who: 'hollis', p: 2, when: (s, st, o, d) => W_(d).weather === 'frost', line: 'Frost on the leaves this morning. The fields are done for the year.' },
   { who: 'hollis', p: 2, when: (s, st, o, d) => W_(d).weather === 'rain', line: 'Good soaking rain. The crops are drinking it up.' },
-  { who: 'hollis', p: 3, when: (s, st) => st.foodDays >= 6, line: 'Granary\'s full to the rafters. We could spare some for a feast, or sell it.' },
+  { who: 'hollis', p: 3, when: (s, st) => st.foodDays >= 6, line: ['Granary\'s full to the rafters. We could spare some for a feast, or sell it.', 'More food than we can eat. A feast, maybe? Or the market.', 'Stores are bursting. We can afford to be generous.'] },
   { who: 'marta',  p: 8, when: (s, st) => st.harmony < 35, line: 'People are angry. I hear talk of leaving. Give them something, anything.' },
-  { who: 'marta',  p: 5, when: (s, st, o) => o.work === 2, line: 'Working them this hard, chief? Backs are breaking, and the tax collector isn\'t making friends.' },
-  { who: 'marta',  p: 4, when: (s, st, o) => o.table === 0, line: 'Lean rations make for short tempers.' },
-  { who: 'marta',  p: 3, when: (s, st) => st.harmony >= 75, line: 'I haven\'t seen this many smiles in years. Whatever you\'re doing, keep doing it.' },
+  { who: 'marta',  p: 5, when: (s, st, o) => o.work === 2, line: ['Working them this hard, chief? Backs are breaking, and the tax collector isn\'t making friends.', 'Hard work again? They\'ll do it, but they won\'t thank you.', 'The work\'s getting done, chief, and so are the workers.'] },
+  { who: 'marta',  p: 4, when: (s, st, o) => o.table === 0, line: ['Lean rations make for short tempers.', 'Thin soup again. People notice.', 'Lean tables, short tempers. It\'s an old rule.'] },
+  { who: 'marta',  p: 3, when: (s, st) => st.harmony >= 75, line: ['I haven\'t seen this many smiles in years. Whatever you\'re doing, keep doing it.', 'Good spirits all round. Keep it up.', 'People are happy, chief. It shows.'] },
   { who: 'rook',   p: 9, when: (s, st, o, d) => (W_(d).event === 'raid' || (W_(d + 1).event === 'raid' && s.scoutedUntil >= d + 1)) && st.power < 45, line: 'Those riders are real, and they\'re coming. We are not ready for them.' },
   { who: 'rook',   p: 6, when: (s, st, o, d) => W_(d + 2).event === 'raid' && s.scoutedUntil < d + 2, line: 'Hunters saw riders on the east ridge. I can\'t tell you how many without scouts.' },
   { who: 'rook',   p: 7, when: (s, st) => st.power < 25, line: 'Thieves walk right past my patrols. We\'re stretched too thin.' },
-  { who: 'rook',   p: 4, when: (s, st, o) => o.guard === 0, line: 'No militia at all? Bold. I hope the valley stays friendly.' },
-  { who: 'rook',   p: 2, when: (s, st) => st.power >= 60, line: 'The walls are manned and my people are sharp. Let them come.' },
-  { who: 'pip',    p: 8, when: (s, st, o, d) => W_(d).event === 'raid', line: 'Fighting\'s not the only answer, chief. Every raider has a price, and I can find it.' },
+  { who: 'rook',   p: 4, when: (s, st, o) => o.guard === 0, line: ['No militia at all? Bold. I hope the valley stays friendly.', 'No guard out again. I\'ll sleep with one eye open.', 'Still no patrols. Brave, chief. Or something.'] },
+  { who: 'rook',   p: 2, when: (s, st) => st.power >= 60, line: ['The walls are manned and my people are sharp. Let them come.', 'My people are ready. Let them try us.', 'Walls are solid, spears are sharp.'] },
+  { who: 'pip',    p: 8, when: (s, st, o, d) => W_(d).event === 'raid', line: ['Fighting\'s not the only answer, chief. Every raider has a price, and I can find it.', 'Raid today. Fight if you like, but gold talks too.', 'Every rider on that ridge has a price. Say the word.'] },
   { who: 'marta',  p: 9, when: (s, st, o, d) => W_(d).event === 'raid' && (s.renown.haven || 0) >= 25, line: 'The families we helped have sent word. If the raiders come, they\'ll ride with us.' },
-  { who: 'marta',  p: 7, when: (s, st, o, d) => W_(d).event === 'raid', line: 'There are caves up the hill. This valley has hidden in them before, when it had to.' },
+  { who: 'marta',  p: 7, when: (s, st, o, d) => W_(d).event === 'raid', line: ['There are caves up the hill. This valley has hidden in them before, when it had to.', 'If it goes badly, the hill caves are still there.', 'The old caves kept us safe before. Remember that.'] },
   { who: 'rook',   p: 8, when: (s, st, o, d) => W_(d).event === 'toll', line: 'Bandits on the valley road. Give me the word and we\'ll clear them out.' },
   { who: 'pip',    p: 7, when: (s, st, o, d) => W_(d).event === 'toll', line: 'Every cart that moves today pays those bandits a cut. Unless we find another way.' },
-  { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).weather === 'drought', line: 'Not a drop of rain. The crops won\'t make half of what they should.' },
+  { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).weather === 'drought', line: ['Not a drop of rain. The crops won\'t make half of what they should.', 'Still no rain. The fields are cracking.', 'Dry again. Half a harvest, if we\'re lucky.'] },
   { who: 'marta',  p: 9, when: (s, st, o, d) => W_(d).event === 'sickness', line: 'A fever\'s going round. If nobody tends the sick, we\'ll lose people.' },
-  { who: 'hollis', p: 6, when: (s, st, o, d) => W_(d).cold, line: 'Every night is a cold one now. We need food in store and wood on the fire.' },
+  { who: 'hollis', p: 6, when: (s, st, o, d) => W_(d).cold, line: ['Every night is a cold one now. We need food in store and wood on the fire.', 'Another freezing night ahead. Food and firewood, chief.', 'Cold again. Keep the granary full and the fires lit.'] },
   { who: 'rook',   p: 9, when: (s, st, o, d) => W_(d + 1).raid >= 100 && s.scoutedUntil >= d + 1, line: 'The scouts are back. Tomorrow\'s warband is the biggest I\'ve ever seen.' },
   { who: 'marta',  p: 7, when: (s, st, o, d) => d === 9, line: 'A pilgrim at the gate, soaked through. It costs us little to be kind.' },
   { who: 'pip',    p: 7, when: (s, st, o, d) => d === 13, line: 'Ashford wants to trade, and there\'s a woman called Cass asking about you. I\'d hear them both.' },
@@ -832,8 +839,8 @@ const COUNCIL = [
   { who: 'pip',    p: 6, when: s => s.gold < 15, line: 'The treasury\'s nearly empty. One more bad day and wages go unpaid.' },
   { who: 'pip',    p: 5, when: (s, st, o, d) => W_(d).prices && W_(d).prices.materials >= 1.4 && W_(d).event !== 'caravan', line: 'Timber\'s fetching a fine price today, chief. Just saying.' },
   { who: 'pip',    p: 6, when: (s, st, o, d) => W_(d).event === 'caravan', line: 'A caravan! They pay well over market. I\'ve been waiting all week for this.' },
-  { who: 'pip',    p: 3, when: s => s.materials >= 40, line: 'The yard is stacked with timber. Build something, or let me sell it.' },
-  { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).cold && o.guard === 2, line: 'We can\'t feed a garrison through this frost, chief. Those soldiers eat double in the cold.' },
+  { who: 'pip',    p: 3, when: s => s.materials >= 40, line: ['The yard is stacked with timber. Build something, or let me sell it.', 'We\'ve more timber than we know what to do with. Build, or I sell.', 'The lumber pile is taller than Rook now. Put it to work.'] },
+  { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).cold && o.guard === 2, line: ['We can\'t feed a garrison through this frost, chief. Those soldiers eat double in the cold.', 'The garrison\'s eating double in this cold. Our stores feel it.', 'Soldiers eat like horses on nights like these, chief.'] },
   { who: 'marta',  p: 8, when: (s, st, o, d) => hasCond(d, 'fever') && o.gates === 0, line: 'Close the gates until the fever passes. Sister Wren says it travels with strangers.' },
   { who: 'pip',    p: 8, when: (s, st, o, d) => hasCond(d, 'caravan') && o.gates === 2, line: 'A caravan\'s coming, and our gates are shut. They\'ll take their gold somewhere else.' },
   { who: 'pip',    p: 6, when: (s, st, o, d) => hasCond(d, 'caravan'), line: 'Caravan in town! Whatever we sell today sells for double.' },
@@ -843,18 +850,23 @@ const COUNCIL = [
   { who: 'hollis', p: 5, when: (s, st, o, d) => hasCond(d, 'build'), line: 'Dry and clear. Best building weather we\'ll get, and timber\'s cheap.' },
   { who: 'marta',  p: 5, when: (s, st, o, d) => hasCond(d, 'feast'), line: 'A feast day. Anything that lifts spirits today goes twice as far.' },
   { who: 'marta',  p: 5, when: (s, st, o, d) => hasCond(d, 'pilgrims'), line: 'Pilgrims on the road. An open gate and a lit shrine go a long way this week.' },
-  { who: 'rook',   p: 6, when: (s, st, o, d) => hasCond(d, 'raiders') && o.guard < 2, line: 'Riders spotted. If you want a garrison on the walls, now\'s the time.' },
-  { who: 'marta',  p: 7, when: (s, st, o) => o.work === 2 && (s.hardDays || 0) >= 3, line: 'Folks are dead on their feet. Another hard week and they\'ll start dropping.' },
-  { who: 'marta',  p: 6, when: (s, st, o) => o.table === 0 && (s.leanDays || 0) >= 3, line: 'Lean rations, day after day. People are thinning out, and so is their patience.' },
+  { who: 'rook',   p: 6, when: (s, st, o, d) => hasCond(d, 'raiders') && o.guard < 2, line: ['Riders spotted. If you want a garrison on the walls, now\'s the time.', 'Riders seen on the ridge. A garrison now would be cheap insurance.', 'More riders out east. Want the walls manned?'] },
+  { who: 'marta',  p: 7, when: (s, st, o) => o.work === 2 && (s.hardDays || 0) >= 3, line: ['Folks are dead on their feet. Another hard week and they\'ll start dropping.', 'They\'re exhausted, chief. Ease off before someone breaks.', 'Tired hands make mistakes. Give them a rest soon.'] },
+  { who: 'marta',  p: 6, when: (s, st, o) => o.table === 0 && (s.leanDays || 0) >= 3, line: ['Lean rations, day after day. People are thinning out, and so is their patience.', 'Another lean week. Folk are grumbling into their bowls.', 'Short rations again. I\'m hearing complaints.'] },
   { who: 'marta',  p: 1, when: (s, st, o, d) => d === 1, line: 'First morning, chief. The valley is watching to see what kind of leader you are.' },
-  { who: 'hollis', p: 1, when: () => true, line: 'Weather\'s holding. The fields are doing what fields do.' },
-  { who: 'pip',    p: 1, when: () => true, line: 'Quiet market today. Coins in, coins out.' },
+  { who: 'hollis', p: 1, when: () => true, line: ['Weather\'s holding. The fields are doing what fields do.', 'Fields look fine. Nothing to report, which is the best kind of report.', 'Quiet in the fields today. I\'ll take quiet.'] },
+  { who: 'pip',    p: 1, when: () => true, line: ['Quiet market today. Coins in, coins out.', 'Slow day at the stalls. I counted the same copper twice.', 'Nothing much moving at market. I\'m keeping the books warm.'] },
 ];
-function council(s, o) {
+// recent: keys of lines said in the last few days. They drop in priority unless they're urgent (p 8+).
+function council(s, o, recent = []) {
   const st = stats(s, o), d = s.day, used = new Set();
-  return COUNCIL.filter(r => r.when(s, st, o, d)).sort((a, b) => b.p - a.p)
-    .filter(r => !used.has(r.who) && used.add(r.who)).slice(0, 3)
-    .map(r => ({ ...CAST[r.who], who: r.who, line: r.line }));
+  const jitter = key => { let h = (d * 2654435761) >>> 0; for (let i = 0; i < Math.min(16, key.length); i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619) >>> 0; return (h % 100) / 250; };
+  return COUNCIL.filter(r => r.when(s, st, o, d)).map(r => {
+    const lines = Array.isArray(r.line) ? r.line : [r.line], key = lines[0];
+    return { r, key, line: lines[(d + r.p) % lines.length], pp: r.p - (recent.includes(key) && r.p < 8 ? 4 : 0) + jitter(key) };
+  }).sort((a, b) => b.pp - a.pp)
+    .filter(x => !used.has(x.r.who) && used.add(x.r.who)).slice(0, 3)
+    .map(x => ({ ...CAST[x.r.who], who: x.r.who, line: x.line, key: x.key }));
 }
 
 // ---------- The shared world ----------
@@ -1069,7 +1081,7 @@ const FOCUS = [
 
   // New paths
   { id: 'wonder', rn: { artisan: 15 }, emoji: '🗿', kind: 'core', short: 'Great work', name: 'Work on the great work', story: 'Carvers and masons put another day into the monument in the square.', arrows: 'Materials ↓ · great work ↑', fx: '−10 Materials → great work +10 (more with a workshop and sharp tools)',
-    when: s => !s.wonderDone, ok: s => s.materials >= 10 || 'Needs 10 Materials',
+    when: s => !s.wonderDone, ok: s => (s.wonder || 0) >= MONUMENT_WAIT && !monumentOpen(s) ? 'The monument waits for its final stage: from day 18, once Artistry\'s trials are passed and it leads your village' : s.materials >= 10 || 'Needs 10 Materials',
     apply(s, c) { s.materials -= 10; s.wonder = Math.min(100, (s.wonder || 0) + 10 + (has(s, 'workshop') ? 4 : 0) + (s.tools ? 2 : 0)); c.log.push(s.wonder >= 100 ? 'The last stone went up at sunset.' : `The great work rises in the square. It's about ${Math.round(s.wonder / 10) * 10}% done.`); } },
   { id: 'adorn', rn: { artisan: 15 }, emoji: '🗿', kind: 'core', short: 'Adorn the work', name: 'Adorn the great work', story: 'Gilding, carvings and a new mosaic for the monument everyone comes to see.', arrows: 'Materials ↓ · Harmony ↑ · more visitors', fx: '−8 Materials → Harmony +3, +2 Gold a day from visitors (up to +10)',
     when: s => s.wonderDone, ok: s => s.materials >= 8 || 'Needs 8 Materials',
@@ -1400,6 +1412,7 @@ function resolveDay(s0, orders, focusId, rng) {
   }
   else log.push('No focus today. The settlement ran on standing orders.');
 
+  if (f && V('J') && !s.wonderDone && (s.wonder || 0) > monumentCap(s, focusId === 'wonder')) s.wonder = monumentCap(s, focusId === 'wonder');
   // 2. Standing orders run everything else
   const work = ORDER_FX.work.output[orders.work] * (orders.work === 2 && hasCond(day, 'build') ? (V('C') ? 1.4 : 1.12) : 1) * (V('E') && orders.work === 2 ? 1 + Math.min(0.15, 0.03 * heldFor(s0, orders, 'work')) : 1) * c.output * (c.hiding ? 0.5 : 1);
   const sites = s.sites || [];
@@ -1434,7 +1447,8 @@ function resolveDay(s0, orders, focusId, rng) {
   if (s.well) c.rn('harvest', 1);
   // Herds grow on their own; a workshop chips away at the great work
   if (s.herd) { s.herd += Math.max(1, Math.floor(s.herd * (has(s, 'ranch') ? 0.15 : has(s, 'pasture') ? 0.12 : 0.07) * (s.herd > 40 ? 0.5 : 1))); c.rn('herd', Math.min(5, Math.floor(s.herd / 6))); }
-  if (has(s, 'workshop') && !s.wonderDone) s.wonder = Math.min(100, (s.wonder || 0) + (has(s, 'atelier') ? 8 : 4));
+  if (has(s, 'workshop') && !s.wonderDone) s.wonder = Math.max(s.wonder || 0, Math.min(V('J') ? monumentCap(s, false) : 100, (s.wonder || 0) + (has(s, 'atelier') ? 8 : 4)));
+  if (V('J') && !s.wonderDone && (s.wonder || 0) >= MONUMENT_WAIT && !monumentOpen(s) && !s.met.monWait) { s.met.monWait = true; echo.push('The monument stands two-thirds done. Its final stage can begin from day 18, once Artistry\'s trials are passed and it leads your village.'); }
   if ((s.wonder || 0) >= 100 && !s.wonderDone) { s.wonderDone = true; c.rn('artisan', 40); s.legacy = Math.min(20, (s.legacy || 0) + 6); echo.push('The great work is finished. People stand in the square just to look at it, and travellers come from far away to see it.'); ledger.push('Great work finished: Artistry +40, Harmony +8 for good, +4 Gold a day from visitors.'); }
   if (blessed) s.blessed -= 1;
   if (has(s, 'maproom')) s.scoutedUntil = Math.max(s.scoutedUntil, day + 7);
@@ -1643,8 +1657,18 @@ function evaluateDay(s, orders, rollouts = 12) {
     }
     value[id] = tot / rollouts;
   }
+  // Trials and great-work steps pay off past the 5-day horizon: credit them with a share of the Legendary bonus they move you toward
+  const lead = leaning(s), credit = {};
+  if (lead && V('J')) {
+    const legendV = LEGEND_BONUS * renownScore(s.renown || {}) * Math.max(0.5, legendScale(s));
+    for (const id of opts) {
+      const r = resolveDay(s, orders, id, mulberry32(s.day * 7919 + 17));
+      const trials = (r.newTrials || []).filter(t => t.path === lead).length, step = id === 'gw_' + lead ? 1 : 0;
+      if (trials || step) { value[id] += (trials + step) * legendV / 6; credit[id] = { path: lead, trials, step }; }
+    }
+  }
   const ranked = Object.entries(value).sort((a, b) => b[1] - a[1]);
-  return { value, ranked, best: ranked.length ? ranked[0][0] : null, bestValue: ranked.length ? ranked[0][1] : 0 };
+  return { value, ranked, credit, best: ranked.length ? ranked[0][0] : null, bestValue: ranked.length ? ranked[0][1] : 0 };
 }
 // 'best' = the top choice or within 2% of it, 'solid' = within 10%, 'weak' = below that
 function gradePick(ev, id) {
@@ -1654,7 +1678,7 @@ function gradePick(ev, id) {
   return ratio >= 0.98 ? 'best' : ratio >= 0.9 ? 'solid' : 'weak';
 }
 
-if (typeof module !== 'undefined') module.exports = { SYN, synOf, focusShare, legendScale, LEGEND_BONUS, FOCUS_MIN, FOCUS_FULL, GREAT_WORK_OPEN, TRIALS, trialsDone, sigDials, leaning, milestoneBonus, MILESTONES, TITLE_DAY, SPOTLIGHT, spotlightOn, RENOWN_TOP, RENOWN_REST, CONDITIONS, COND_DAYS, condsOn, hasCond, dealHand, setDealSeed, isDeck, fatigueOf, focusMult, HAND_SIZE, BUILDINGS: typeof BUILDINGS !== 'undefined' ? BUILDINGS : {}, GREAT_WORKS, MONTH, comboOf, COMBO_TITLES, SITES, setSeasonLength, ensureScript, TRACKS, TRACK_IDS, PATH_DIALS, identity, renownScore, FX_TABLE, evaluateDay, gradePick, SEASON, ORDER_FX, DIALS, DEFAULT_ORDERS, BUILDINGS, SCRIPT, FORECAST, FOCUS, FOCUS_BY_ID, MOODS, CAST, council, focusOptions, stats, newSettlement, resolveDay, makeCrowd, stepCrowd, mulberry32 };
+if (typeof module !== 'undefined') module.exports = { monumentOpen, monumentCap, MONUMENT_WAIT, SYN, synOf, focusShare, legendScale, LEGEND_BONUS, FOCUS_MIN, FOCUS_FULL, GREAT_WORK_OPEN, TRIALS, trialsDone, sigDials, leaning, milestoneBonus, MILESTONES, TITLE_DAY, SPOTLIGHT, spotlightOn, RENOWN_TOP, RENOWN_REST, CONDITIONS, COND_DAYS, condsOn, hasCond, dealHand, setDealSeed, isDeck, fatigueOf, focusMult, HAND_SIZE, BUILDINGS: typeof BUILDINGS !== 'undefined' ? BUILDINGS : {}, GREAT_WORKS, MONTH, comboOf, COMBO_TITLES, SITES, setSeasonLength, ensureScript, TRACKS, TRACK_IDS, PATH_DIALS, identity, renownScore, FX_TABLE, evaluateDay, gradePick, SEASON, ORDER_FX, DIALS, DEFAULT_ORDERS, BUILDINGS, SCRIPT, FORECAST, FOCUS, FOCUS_BY_ID, MOODS, CAST, council, focusOptions, stats, newSettlement, resolveDay, makeCrowd, stepCrowd, mulberry32 };
 
 </script>
 <script>
@@ -2443,6 +2467,28 @@ const ODD = [
   'One day I\'ll leave and become a legend. Today I\'m carrying firewood.',
   'Ask me what\'s in the sack. Go on. ...No, I can\'t tell you.',
   'My grandmother said never trust a man with two hats. Pip has three.',
+  'I\'m teaching the goose to count. We\'re up to two.',
+  'If you stare at the river long enough, it stares back. It\'s polite like that.',
+  'I tried to bake bread shaped like Marta. It came out shaped like Rook.',
+  'Somebody keeps leaving a single acorn on my doorstep. I\'m flattered and afraid.',
+  'My bees are on strike. They want better flowers.',
+  'I lost a button in the well. If you find it, it\'s mine.',
+  'I counted the stars last night. Lost count at forty and started over.',
+  'The cooper says barrels are just boxes that gave up on corners.',
+  'I wrote a poem about mud. It\'s mostly about mud.',
+  'I sleep better when it rains. I sleep worse when it rains on me.',
+  'My grandmother says the valley has a spirit. She says that about her teapot, too.',
+  'I\'m saving up for a hat with a feather. Then I\'ll save up for a second feather.',
+  'There\'s a crow that only lands on Hollis. We\'re all a little jealous.',
+  'Do you think the raiders have a nice side? I bet they have a nice side.',
+  'I found a coin in a loaf of bread. Now I check every loaf. Very slowly.',
+  'Tilly and I are having a quiet contest. She doesn\'t know about it, so I\'m winning.',
+  'I tried to whistle and a dog came. Not my dog. Still nice.',
+  'The night baker sings to the dough. Says it rises higher. It might.',
+  'Someone painted the gate blue. Nobody will admit it. I like it.',
+  'I asked the well for a wish. It asked me for a bucket.',
+  'My left boot squeaks and my right boot doesn\'t. I walk with a limp to keep them even.',
+  'I\'ve decided I\'m a morning person. The morning hasn\'t decided about me.',
 ];
 const IDLE = {
   marta: ['I\'ve buried two husbands and three mayors. Don\'t make me add you to the list.', 'The young ones think I\'m slow. I\'m not slow. I\'m deliberate.', 'Mind the well. It listens.'],
@@ -2643,7 +2689,46 @@ function rider(cx, cy, t, i) { const b = Math.sin(t * 9 + i) > 0 ? 1 : 0; px(cx 
 // Council members with something to say today get a "!" above their head.
 // The bubble closes on its own after 10 seconds, or when you tap anywhere else.
 let bubbleWho = null, bubbleTimer = null, todayLines = {}, heard = new Set();
-function setVoices(v) { todayLines = {}; v.forEach(x => { todayLines[x.who] = x.line; }); heard = new Set(); hideBubble(); }
+function setVoices(v) { todayLines = {}; v.forEach(x => { todayLines[x.who] = x.line; }); heard = new Set(); folkHeard = new Set(); hideBubble();
+  // Villagers start from a different odd line each day
+  const d = (typeof G !== 'undefined' && G && G.s) ? G.s.day : 1; actors.forEach((a, i) => { a.line = (i * 11 + 4 + d * 7) % ODD.length; }); }
+// Villagers who notice the day: the valley's events and your village's path
+let folkHeard = new Set();
+const PATH_TALK = {
+  might: 'Rook made me march in a line. I marched in a circle. Nobody noticed.',
+  haven: 'So many new faces lately. I\'ve given up on names. Everyone\'s "friend" now.',
+  harvest: 'I hugged a haystack today. It\'s been a good year for haystacks.',
+  trade: 'Pip says everything has a price. I asked about my cat. He\'s still thinking.',
+  craft: 'Every time I blink there\'s a new building. I\'m afraid to blink now.',
+  revelry: 'Another party! My feet have filed a complaint.',
+  artisan: 'I\'ve been posing for the monument. My left side is my best side.',
+  shadow: 'A man in a hood sold me a very good cheese. I didn\'t ask questions.',
+  faith: 'I lit a candle at the shrine and asked for nothing in particular. Felt nice.',
+  wander: 'The explorers came back with a rock shaped like a duck. They\'re very proud.',
+  herd: 'A cow followed me home. Then twelve more. I think I live with cows now.',
+};
+function topicalLines() {
+  if (typeof G === 'undefined' || !G || !G.s) return [];
+  const d = Math.min(G.s.day, SEASON.days), W = SCRIPT[d] || {}, has = k => hasCond(d, k), out = [];
+  if (W.event === 'raid') out.push('Did you see the riders on the ridge? I\'ve hidden my good boots.', 'My cousin says Kestrel\'s horse has no name. I think it\'s called Kevin.');
+  else if (has('raiders')) out.push('Rook\'s been sharpening things all morning. That\'s never a good sign.');
+  if (W.event === 'caravan' || has('caravan')) out.push('The caravan has a man selling one-legged chairs. Says they\'re "minimalist".', 'I traded a song for a ribbon at the caravan. Worst song I know, too.');
+  if (W.weather === 'drought') out.push('I licked a rock this morning hoping it was a well. It was not a well.', 'The frogs have stopped talking to me. Too dry, they say.');
+  if (W.event === 'rains') out.push('Rain! I\'ve put out every pot I own, and two I borrowed.');
+  if (W.event === 'sickness' || has('fever')) out.push('Wash your hands, Wren says. I\'ve washed mine four times. They\'ve never been so clean.', 'I\'m not sick. I\'m dramatic. There\'s a difference.');
+  if (W.cold) out.push('My breath froze into a little cloud and I named it Gerald.', 'I\'m wearing three socks. Don\'t ask where the third one is.');
+  if (W.event === 'fair') out.push('I entered my turnip in the fair. It\'s got personality.');
+  else if (has('feast')) out.push('Feast day! I\'ve been saving room since Tuesday.');
+  if (has('pilgrims')) out.push('The pilgrims sing at night. I\'ve started humming along, badly.');
+  if (has('build')) out.push('Hollis says it\'s good building weather. I say it\'s good napping weather. We\'re both right.');
+  if (has('hunting')) out.push('The elk are so thick in the high woods you could ride one to market.');
+  if (has('slump')) out.push('Pip\'s been muttering at his market stall. I left him a biscuit.');
+  if (has('lean') && W.weather !== 'drought') out.push('Lean times again. I\'ve made a soup that is mostly hope.');
+  if (W.event === 'toll') out.push('Bandits on the road want a cut of my eggs. They can have the brown ones.');
+  const p = leaning(G.s); if (p && PATH_TALK[p]) out.push(PATH_TALK[p]);
+  if (p && (G.s.greatWorks || []).includes(p)) out.push('Have you seen the great work? I keep finding excuses to walk past it.');
+  return out;
+}
 function hideBubble() { clearTimeout(bubbleTimer); bubbleWho = null; const el = document.getElementById('council'); if (el) el.hidden = true; }
 function say(who, name, role, line, isCouncil) {
   const el = document.getElementById('council');
@@ -2677,7 +2762,9 @@ cv.addEventListener('click', e => {
   const h = hitTest(e);
   if (!h) { hideBubble(); return; }
   if (h.folk != null) {
-    const a = actors[h.folk]; const said = ODD[a.line]; a.line = (a.line + 1) % ODD.length; a.wait = 3; a.tx = a.x; a.ty = a.y;
+    const a = actors[h.folk], fresh = topicalLines().filter(l => !folkHeard.has(l)); let said;
+    if (fresh.length && (folkHeard.size < 2 || Math.random() < 0.5)) { said = fresh[0]; folkHeard.add(said); } else { said = ODD[a.line]; a.line = (a.line + 1) % ODD.length; }
+    a.wait = 3; a.tx = a.x; a.ty = a.y;
     say('v' + h.folk, a.name, a.role, said, false); return;
   }
   const id = h.cast.id, c = CAST[id];
@@ -2848,7 +2935,7 @@ function render() {
   $('almanac').querySelectorAll('button').forEach(b => b.onclick = () => openNote(b, b.dataset.t, b.dataset.x));
 
   const vk = day + theme;
-  if (vk !== lastVoiceKey) { lastVoiceKey = vk; setVoices(council(s, G.morning)); }
+  if (vk !== lastVoiceKey) { lastVoiceKey = vk; const cv = council(s, G.morning, recentCouncil(day)); rememberCouncil(day, cv); setVoices(cv); }
   if (G.choice !== lastChoice) { lastChoice = G.choice; retarget(); }
 
   $('headline').textContent = TH().headlines[day] || T(SCRIPT[day].headline);
@@ -3023,8 +3110,8 @@ let busy = false;
 function endDay() {
   if (!G.choice || busy || G.s.day > todayLimit() || G.s.day > SEASON.days) return;
   const day = G.s.day, picked = G.choice;
-  const ev = evaluateDay(G.s, G.orders);
-  const r = advanceDay(picked, { grade: gradePick(ev, picked), best: ev.best, runnerUp: ev.ranked.length > 1 ? ev.ranked[1][0] : null });
+  const ev = evaluateDay(G.s, G.orders), gi = gradeInfo(G.s, G.orders, ev, picked);
+  const r = advanceDay(picked, gi);
   busy = true; closeNote(); hideBubble();
   document.body.classList.add('dusk');
   $('endHint').textContent = 'Night falls…';
@@ -3062,9 +3149,12 @@ function showResults(day, picked, r) {
     const p = Math.round(v.n / total * 100), g = v.gain / v.n;
     return `<div class="cbar${id === picked ? ' mine' : ''}">${icon(focusIcon(FOCUS_BY_ID[id]), 18)}<span class="n">${esc(focusName(FOCUS_BY_ID[id]))}${id === picked ? ' (you)' : ''} <span class="g" style="color:${g >= 0 ? 'var(--good)' : 'var(--bad)'}" title="${g >= 0 ? 'Mostly paid off' : 'Mostly hurt'}">${g >= 0 ? '▲' : '▼'}</span></span><span class="pc">${p}%</span><span class="track"><i style="width:${p}%"></i></span></div>`;
   }).join('');
-  const gd = G.grades[day], bf = FOCUS_BY_ID[gd.best];
-  const pctBest = picks[gd.best] ? Math.round(picks[gd.best].n / total * 100) : 0;
-  const verdict = { best: 'You found it.', solid: 'A good call, but not the best one.', weak: 'You missed this one.' }[gd.grade];
+  const gd = G.grades[day], tied = (gd.ties || []).includes(picked) || gd.best === picked;
+  const shown = tied ? picked : gd.best, bf = FOCUS_BY_ID[shown];
+  const pctBest = picks[shown] ? Math.round(picks[shown].n / total * 100) : 0;
+  const others = (gd.ties || []).filter(id => id !== picked).slice(0, 2).map(id => focusName(FOCUS_BY_ID[id]));
+  const verdict = tied ? (others.length ? `You found it. ${others.join(' and ')} ${others.length > 1 ? 'were' : 'was'} about as good.` : 'You found it.')
+    : `${gd.grade === 'solid' ? 'A good call, but not the best one.' : 'You missed this one.'} You picked ${focusName(FOCUS_BY_ID[picked])}${gd.rank ? `, ${ordinal(gd.rank)} of ${gd.total}` : ''}.${gd.why ? ' ' + gd.why : ''}`;
   const ri = rankInfo(s), myGain = (s.ranked - b.ranked) / Math.max(1, b.ranked);
   const ow = { work: ['easy work', 'steady work', 'hard work'], table: ['a lean table', 'a normal table', 'feasting'] };
   const ordersLine = `Everyone else kept to their orders: ${ow.work[G.morning.work]}, ${ow.table[G.morning.table]}, the ${T('gates')} ${['open', 'watched', 'shut'][G.morning.gates]} and ${['no guard', 'patrols out', 'the garrison on duty'][G.morning.guard]}.`;
@@ -3080,7 +3170,7 @@ function showResults(day, picked, r) {
     ${r.faded ? `<p class="echo"><b>Fading</b>Nobody did anything for your ${esc(pathName(r.faded.path))} reputation today, and people noticed: −${r.faded.n} renown.</p>` : ''}
     <div class="ccols">
       <div style="display:grid;gap:12px;align-content:start">
-        <section class="box"><h4>Best move for your village</h4><div class="bm"><span class="grade ${gd.grade}" aria-label="${gd.grade}"></span><div><p><b>${esc(focusName(bf))}</b>. ${pctBest <= 1 ? 'Almost nobody' : pctBest + '% of villages'} chose it.</p><p class="you">${verdict}${gd.grade !== 'best' ? ` You picked ${esc(focusName(FOCUS_BY_ID[picked]))}.` : ''}</p></div></div></section>
+        <section class="box"><h4>Best move for your village</h4><div class="bm"><span class="grade ${gd.grade}" aria-label="${gd.grade}"></span><div><p><b>${esc(focusName(bf))}</b>. ${pctBest <= 1 ? 'Almost nobody' : pctBest + '% of villages'} chose it.</p><p class="you">${esc(verdict)}</p>${gd.tip ? `<p class="you tip">${esc(T(gd.tip))}</p>` : ''}</div></div></section>
         <section class="box"><h4>How the village feels tonight</h4>
           <div class="shifts">${moodShift('heart', T('Harmony'), MOODS.harmony, b.harmony, a.harmony)}${moodShift('shield', T('Power'), MOODS.power, b.power, a.power)}${moodShift('pouch', T('Wealth'), MOODS.wealth, b.wealth, a.wealth)}${moodShift('sack', R.food, MOODS.food, b.foodDays, a.foodDays)}</div>
           <div class="counts">${count('coin', R.gold, b.gold, a.gold)}${count('log', R.materials, b.materials, a.materials)}${count('person', R.pop, b.pop, a.pop) || ''}</div></section>
@@ -3118,7 +3208,7 @@ function seasonSummary() {
 Score ${fmt(s.ranked)} · top ${ri.top}%${pr ? `\n${vt} · top ${pr.top}% of ${plural(title)}` : ''}
 ${gridLine()}\n${counts.best}/${SEASON.days} best moves
 🏘 ${T(MOODS.harmony(st.harmony))} · ${T(MOODS.power(st.power))} · ${T(MOODS.wealth(st.wealth))}</pre>
-    <div class="row2"><button class="morning" id="copyShare">Copy result</button><button class="plain" id="again">Play the week again</button></div>
+    <div class="row2"><button class="morning" id="copyShare">Copy result</button><button class="plain" id="again">Play another month</button></div>
     <p class="fine">Every month is a new season, against everyone playing that month.</p>`;
 }
 function wireSummary() {
@@ -3137,7 +3227,7 @@ const TOUR = [
   { title: 'Welcome, chief', text: 'You lead a small frontier village for a whole month, one day at a time. Each day you make one big choice. There\'s no single right way to play: build a fortress, a market hub, a haven for anyone in need, or something all your own.', start: true },
   { target: ['moods', 'res'], title: 'How your village is doing', text: 'The heart is Harmony, the shield is Power, the pouch is Wealth and the sack is Food. The fuller the icon, the better. Your score multiplies the first three, so one weak spot drags everything down. Tap an icon to see why.' },
   { target: ['pathBtn'], title: 'Your path', text: 'Everything you do earns renown, and the valley starts calling your village by what it\'s known for. Follow a path, pass its three trials and build its great work to go Legendary. Tap it to see your trials, and Play styles for how each path plays.' },
-  { target: ['almanac'], title: 'The almanac', text: 'What\'s coming this week. Tap a day to read it. "sure" means it will happen; a ? is only a rumor. Scouting fills in more days.' },
+  { target: ['almanac'], title: 'The almanac', text: 'What\'s coming in the next seven days. Tap a day to read it. "sure" means it will happen; a ? is only a rumor. Scouting fills in more days.' },
   { target: ['stage'], title: 'Your village', text: 'Tap anyone to hear what they have to say. Council members with a ! over their head have news for you today. Their hints and the almanac point to the best move.' },
   { target: ['cards'], title: 'Pick one Focus', text: 'This is the day\'s big decision. Tap a card to read it. Everyday cards are dealt fresh each morning, and doing the same thing two days running pays less. Cards with a red ribbon are only here today; a die means a gamble. The little icons show which path a card builds.' },
   { target: ['orders'], title: 'Your standing orders', text: 'These four levers run everything you don\'t focus on. Each setting off the middle suits two paths (the ledger shows which), and some days reward a change: watch for the hint above the levers.' },
@@ -3245,7 +3335,8 @@ function trialsHtml(s) {
   const p = leaning(s); if (!p) return '';
   const done = (s.trials || {})[p] || [], f = Math.round(focusShare(s, p) * 100), legend = (s.greatWorks || []).includes(p);
   const list = TRIALS[p].map(([id, name]) => `<li class="${done.includes(id) ? 'done' : ''}">${done.includes(id) ? '✓' : '○'} ${esc(T(name))}</li>`).join('');
-  const gw = legend ? `<b>Legendary.</b> The ${esc(gwName(p))} stands.` : done.length >= 3 ? (s.day >= GREAT_WORK_OPEN ? `The ${esc(gwName(p))} is open: look for it among today's cards.` : `The ${esc(gwName(p))} opens on day ${GREAT_WORK_OPEN}.`) : `Pass all three to open the ${esc(gwName(p))} from day ${GREAT_WORK_OPEN}.`;
+  const mon = p === 'artisan';
+  const gw = legend ? `<b>Legendary.</b> The ${esc(gwName(p))} stands.` : done.length >= 3 ? (s.day >= GREAT_WORK_OPEN ? (mon ? `The monument's final stage is open: finish it with the Great work card.` : `The ${esc(gwName(p))} is open: look for it among today's cards.`) : (mon ? `The monument can rise to two-thirds now; its final stage opens on day ${GREAT_WORK_OPEN}.` : `The ${esc(gwName(p))} opens on day ${GREAT_WORK_OPEN}.`)) : mon ? `Build the monument with the Great work card. It stops at two-thirds until all three trials are passed and day ${GREAT_WORK_OPEN} comes.` : `Pass all three to open the ${esc(gwName(p))} from day ${GREAT_WORK_OPEN}.`;
   return `<div class="trials"><p><b>${esc(pathName(p))} trials</b></p><p>Focus ${f}%${f < FOCUS_MIN * 100 ? ` (needs ${FOCUS_MIN * 100}%)` : ''}</p><ul>${list}</ul><p>${gw}</p></div>`;
 }
 // The Play styles page: how each path plays
@@ -3267,12 +3358,40 @@ function showPlayStyles() {
 }
 // Artistry's great work is the monument in the square, built with the Great work card
 const gwName = p => (GREAT_WORKS[p] || {}).name || 'Great Monument';
+
+// Alpha 5.1: an honest grade. Near-ties are named as ties; a miss says how far off and why.
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+function gradeInfo(s, orders, ev, picked) {
+  const best = ev.best, bv = ev.bestValue || 1, ranked = ev.ranked;
+  const ties = ranked.filter(([, v]) => v >= bv * 0.98).map(([id]) => id);
+  const rank = ranked.findIndex(([id]) => id === picked) + 1, gap = Math.max(0, Math.round(bv - (ev.value[picked] || 0)));
+  const cr = (ev.credit || {})[best];
+  let why = '';
+  const cp = (ev.credit || {})[picked] || { trials: 0, step: 0 };
+  if (!ties.includes(picked)) why = cr && cr.trials > cp.trials ? `${focusName(FOCUS_BY_ID[best])} would have passed a ${pathName(cr.path)} trial.` : cr && cr.step > cp.step ? `It would have moved your great work forward.` : gap ? `It would have left you about ${gap} points further ahead within five days.` : '';
+  // A dial change that would have passed a trial for your leading path today
+  let tip = '';
+  const lead = leaning(s);
+  if (lead && TRIALS[lead]) {
+    const base = (resolveDay(s, orders, picked, mulberry32(s.day)).newTrials || []).filter(t => t.path === lead).length;
+    outer: for (const d of DIALS) for (let v = 0; v < 3; v++) {
+      if (v === orders[d.id]) continue;
+      const o2 = { ...orders, [d.id]: v }, n = (resolveDay(s, o2, picked, mulberry32(s.day)).newTrials || []).filter(t => t.path === lead);
+      if (n.length > base) { tip = `Tip: setting ${dialName(d)} to ${d.opts[v]} today would have passed a ${pathName(lead)} trial (${n.at(-1).name.toLowerCase()}).`; break outer; }
+    }
+  }
+  return { grade: ties.includes(picked) ? 'best' : gradePick(ev, picked), best, runnerUp: ranked.length > 1 ? ranked[1][0] : null, ties, rank, total: ranked.length, why, tip };
+}
+// Council memory: lines said in the last three days drop in priority (kept per season, outside the save)
+function councilMem() { try { const m = JSON.parse(localStorage.getItem('thirtydays-council') || '{}'); return m.season === G.seasonKey + ':' + G.seed ? m : { season: G.seasonKey + ':' + G.seed, days: {} }; } catch (e) { return { season: '', days: {} }; } }
+function recentCouncil(day) { const m = councilMem(); return [day - 1, day - 2, day - 3].flatMap(d => m.days[d] || []); }
+function rememberCouncil(day, lines) { const m = councilMem(); m.days[day] = lines.map(l => l.key); try { localStorage.setItem('thirtydays-council', JSON.stringify(m)); } catch (e) { /* storage unavailable */ } }
 // ---------------------------------------------------------------------------
 // Alpha test tools: feedback, tester reports, skipping days, and the tester guide
 // ---------------------------------------------------------------------------
-const BUILD = 'Alpha 5 · Oct 29, 2026';
+const BUILD = 'Alpha 5.2 · Oct 30, 2026';
 const FEEDBACK_URL = 'https://forms.gle/16WLoWj5qVTKXTLp9';
-const ALPHA_KEY = 'thirtydays-alpha5-guide-seen';
+const ALPHA_KEY = 'thirtydays-alpha52-guide-seen';
 
 // A run code is the whole season in one line: seed, then day:focus:orders for every day played.
 // Paste it back to Claude to see exactly what a tester did.
@@ -3312,7 +3431,7 @@ function showFeedback() {
 function showAlphaGuide() {
   closeNote(); hideBubble();
   $('sheet').innerHTML = `<header class="mast"><h3 id="sheetTitle">Welcome, alpha tester</h3><p><span>${BUILD}</span><span>You're one of the first ten</span></p></header>
-    <p class="lead">Thanks for helping build this. New in Alpha 5: the dials now matter. Each setting off the middle suits two paths (see the ledger), and some days reward a change (watch the hint above the levers). Each path has three trials: pass them on the right days to open its great work and go Legendary, a bonus of up to 60%. The Play styles page (tap your path, top left) shows how each path plays. Your old month was reset for the new rules.</p>
+    <p class="lead">Thanks for finishing a month! New in Alpha 5.2: Artistry's monument now follows the same rules as every great work. It can rise to two-thirds any time, but its final stage opens only from day 18, once Artistry's trials are passed and it leads your village. The Best move box now explains itself, the townsfolk have far more to say, and your month has been reset for a fresh start. Each setting off the middle suits two paths (see the ledger), each path has three trials, and passing them opens its great work: tap your path, top left, for the Play styles page.</p>
     <p class="lead">A few things that work differently in the test:</p>
     <ol class="steps">
       <li><b>Play at your own speed.</b> The real game gives you one day per real day. In the test, as soon as you end a day, the next one starts. Play one day or all thirty in a sitting.</li>
@@ -3348,7 +3467,7 @@ $('feedbackBtn').onclick = () => { if (!busy && tourAt < 0) showFeedback(); };
 // ---------------------------------------------------------------------------
 const PACING = /(^|#)daily\b/.test(location.hash) ? 'daily' : 'free';
 const FREE_SEASON_DAYS = 30;
-const SAVE_KEY = 'thirtydays-save-v6';
+const SAVE_KEY = 'thirtydays-save-v7';
 let replaying = false, dayOffset = 0;
 try { dayOffset = +localStorage.getItem('thirtydays-day-offset') || 0; } catch (e) { dayOffset = 0; }
 
@@ -3392,7 +3511,7 @@ function advanceDay(focusId, gradeInfo) {
 }
 
 function saveGame() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 6, pacing: PACING, season: G.seasonKey, seed: G.seed, days: G.days, joinDay: G.joinDay, theme, orders: G.orders, log: G.log })); } catch (e) { /* storage unavailable: the game still plays, it just won't resume */ }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 7, pacing: PACING, season: G.seasonKey, seed: G.seed, days: G.days, joinDay: G.joinDay, theme, orders: G.orders, log: G.log })); } catch (e) { /* storage unavailable: the game still plays, it just won't resume */ }
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
 
@@ -3400,7 +3519,7 @@ function startSeason(fresh) {
   const cal = calendarSeason();
   const want = PACING === 'daily' ? { key: cal.key, seed: cal.seed, days: cal.days } : { key: 'free', seed: 20261023, days: FREE_SEASON_DAYS };
   const save = fresh ? null : loadSave();
-  const usable = save && save.v === 6 && save.pacing === PACING && save.season === want.key;
+  const usable = save && save.v === 7 && save.pacing === PACING && save.season === want.key;
   const seed = usable ? save.seed : (fresh && PACING === 'free' && G ? G.seed + 1 : want.seed);
   setSeasonLength(usable ? save.days : want.days);
   G = freshState(seed); G.seasonKey = want.key; G.days = SEASON.days;
