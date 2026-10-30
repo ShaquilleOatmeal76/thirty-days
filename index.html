@@ -154,6 +154,24 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--brass)
 .ribbon { position: absolute; top: -9px; right: 3px; font-family: var(--font-pixel); font-size: .66rem; line-height: 1; padding: 3px 4px 5px; color: #fff4dc; background: var(--seal);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%); }
 .ribbon.new { background: var(--power); }
+.ftag { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font-family: var(--font-pixel); font-size: .64rem; line-height: 1; padding: 3px 4px 4px; color: #fff4dc; z-index: 1; white-space: nowrap; }
+.ftag.down { background: #7a6a55; }
+.ftag.up { background: var(--good); }
+.conds { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.conds[hidden] { display: none; }
+.cond { display: inline-flex; align-items: center; gap: 5px; font: 700 .8rem/1 var(--font-pixel); color: var(--ink); background: #f3e3bf; border: 2px solid var(--ink-soft); padding: 4px 8px 4px 6px; cursor: pointer; }
+.cond .px { width: 16px; height: 16px; }
+.dialhint { margin: 2px 0 6px; font-family: var(--font-text); font-style: italic; font-size: .9rem; color: var(--seal); }
+.dialhint[hidden] { display: none; }
+.trials { margin: 6px 0; } .trials p { margin: 2px 0; } .trials ul { list-style: none; margin: 2px 0; padding: 0; } .trials li { font-size: .92rem; } .trials li.done { color: var(--good); }
+.styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+.style { background: #fbf4e2; border: 2px solid var(--ink-soft); padding: 8px 10px; }
+.style h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 6px; font-size: 1rem; } .style h4 small { font-weight: 400; color: var(--ink-soft); }
+.style p { margin: 3px 0; font-size: .88rem; line-height: 1.3; }
+.cond.spot { background: #efe2c4; font-weight: 600; gap: 3px; }
+.cond.spot .px { width: 14px; height: 14px; }
+.almanac button { position: relative; }
+.cdot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: var(--seal); border-radius: 50%; }
 .ribbon.rare { background: var(--wealth); color: #fff8e6; }
 .die { position: absolute; top: -7px; left: -6px; }
 .detail { min-height: 4em; font-size: .95rem; line-height: 1.3; border-top: 1px dashed var(--ink-soft); padding-top: 7px; }
@@ -355,6 +373,7 @@ pre.share { margin: 0; padding: 10px 12px; background: #fbf4e2; border: 2px dash
 .ltable.renown th small { color: var(--ink-soft); font-style: italic; }
 .ltable.renown td.bar { width: 45%; } .ltable.renown td.bar i { display: block; height: 8px; background: var(--seal); }
 .ltable.dials td .rn { display: block; margin-top: 2px; color: var(--seal); font-size: .8rem; }
+.ltable.dials td .rn .px { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; margin: 0 2px 0 3px; }
 .fxlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px 22px; }
 .fxlist h5 { grid-column: 1 / -1; margin: 6px 0 -4px; font-family: var(--font-pixel); font-weight: 800; font-size: 1rem; color: var(--seal); }
 .fx { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-bottom: 1px solid rgba(80, 110, 150, .2); }
@@ -435,12 +454,14 @@ pre.share { margin: 0; padding: 10px 12px; background: #fbf4e2; border: 2px dash
   <aside class="panel" id="panel" aria-label="Today">
     <div class="sheet-paper">
       <h2 class="headline" id="headline"></h2>
+      <div class="conds" id="conds" hidden></div>
       <h3 class="sect">Today's focus <small>pick one</small><button class="buildbtn" id="buildGroup" aria-expanded="false"></button></h3>
       <div class="tiles" id="cards"></div>
       <div class="detail" id="detail"></div>
     </div>
     <div class="sheet-paper" id="orders">
       <h3 class="sect">Standing orders <small>they run everything else</small></h3>
+      <p class="dialhint" id="dialHint" hidden></p>
       <div id="dials"></div>
     </div>
     <button class="seal" id="endDay" disabled><span class="wax" id="wax"></span><span class="st"><b id="endLabel">End day 1</b><small id="endHint">Pick a focus first</small></span></button>
@@ -531,21 +552,32 @@ const TRACK_IDS = Object.keys(TRACKS);
 const RENOWN_TITLE_AT = 12;
 const blankRenown = () => Object.fromEntries(TRACK_IDS.map(t => [t, 0]));
 const renownSorted = rn => TRACK_IDS.map(t => [t, rn[t] || 0]).sort((a, b) => b[1] - a[1]);
-// Strongest path ×2, second ×1, the rest ×¼
-const RENOWN_REST = 0.25;
-function renownScore(rn) { const v = renownSorted(rn).map(x => x[1]); return r0(v[0] * 2 + v[1] + v.slice(2).reduce((a, b) => a + b, 0) * RENOWN_REST); }
+// Alpha 3: your top two paths count ×1.5 each, the rest ×¼
+const RENOWN_TOP = 1.5, RENOWN_REST = 0.25;
+function renownScore(rn) { const v = renownSorted(rn).map(x => x[1]); return r0((V('W') ? v[0] * 1.75 + v[1] * 1.25 : (v[0] + v[1]) * RENOWN_TOP) + v.slice(2).reduce((a, b) => a + b, 0) * RENOWN_REST); }
+// 7. Milestones: the first time a path reaches 50, 100 and 200 renown
+const MILESTONES = [[50, 15], [100, 25], [200, 40]];
+const milestoneBonus = s => Object.values(s.milestones || {}).reduce((a, lvl) => a + MILESTONES.slice(0, lvl).reduce((x, m) => x + m[1], 0), 0);
+// 9. Titles from day 5; before that a village is only leaning toward a path
+const TITLE_DAY = 5;
+// 10. Path weeks: each week's story spotlights some paths (+50% renown from story cards)
+const SPOTLIGHT = [[7, ['might', 'haven', 'craft']], [14, ['trade', 'faith', 'wander']], [22, ['harvest', 'faith', 'shadow']], [31, ['haven', 'might', 'revelry', 'artisan']]];
+const spotlightOn = d => (SPOTLIGHT.find(([end]) => d <= end) || SPOTLIGHT.at(-1))[1];
 // The blended pair when the second path is at least 75% of the first, else null
 function comboOf(s) {
   const r = renownSorted(s.renown || {});
+  if ((s.day || 1) < TITLE_DAY) return null;
   if (r[0][1] < RENOWN_TITLE_AT || r[1][1] < RENOWN_TITLE_AT || r[1][1] < r[0][1] * 0.75) return null;
   const pair = [r[0][0], r[1][0]].sort((a, b) => TRACK_IDS.indexOf(a) - TRACK_IDS.indexOf(b)).join('+');
   return COMBO_TITLES[pair] ? pair : null;
 }
-function identity(s) { const top = renownSorted(s.renown || {})[0]; return top && top[1] >= RENOWN_TITLE_AT ? top[0] : null; }
+function identity(s) { if ((s.day || 1) < TITLE_DAY) return null; const top = renownSorted(s.renown || {})[0]; return top && top[1] >= RENOWN_TITLE_AT ? top[0] : null; }
+function leaning(s) { const top = renownSorted(s.renown || {})[0]; return top && top[1] > 0 ? top[0] : null; }
 // Standing orders and buildings earn a little renown every day
-const DIAL_RENOWN = { work: [{ revelry: 1 }, {}, { craft: 2 }], table: [{ harvest: 1 }, {}, { revelry: 2 }], gates: [{ haven: 2 }, {}, {}], guard: [{ haven: 1 }, { might: 1 }, { might: 5 }] };
-const BUILDING_RENOWN = { tradehall: { trade: 2 }, stonewall: { might: 2 }, hospice: { haven: 2 }, terraces: { harvest: 2 }, lumberyard: { craft: 2 }, greathall: { revelry: 2 },
-  atelier: { artisan: 2 }, tunnel: { shadow: 2 }, temple: { faith: 2 }, maproom: { wander: 2 }, ranch: { herd: 2 }, fields: { harvest: 4 }, market: { trade: 4 }, tavern: { revelry: 3 }, palisade: { might: 2 }, sawmill: { craft: 2 }, hall: { haven: 3 },
+// Alpha 2: dials are for running the village, not for renown
+const DIAL_RENOWN = { work: [{}, {}, {}], table: [{}, {}, {}], gates: [{}, {}, {}], guard: [{}, {}, {}] };
+const BUILDING_RENOWN = { tradehall: { trade: 2 }, stonewall: { might: 4 }, hospice: { haven: 3 }, terraces: { harvest: 2 }, lumberyard: { craft: 2 }, greathall: { revelry: 2 },
+  atelier: { artisan: 2 }, tunnel: { shadow: 2 }, temple: { faith: 2 }, maproom: { wander: 2 }, ranch: { herd: 2 }, fields: { harvest: 4 }, market: { trade: 5 }, tavern: { revelry: 4 }, palisade: { might: 4 }, sawmill: { craft: 2 }, hall: { haven: 4 },
   workshop: { artisan: 4 }, cellar: { shadow: 3 }, shrine: { faith: 3 }, lodge: { wander: 4 }, pasture: { herd: 3 } };
 
 // ---------- Standing orders: four dials ----------
@@ -555,19 +587,80 @@ const ORDER_FX = {
   gates: { harmony: [0, 0, -4], raid: [1.3, 1, 0.6] },
   guard: { power: [0, 10, 25], gold: [0, 3, 8], food: [0, 0, 3] },
 };
+// Alpha 5 design switches (kept so the simulators can compare designs; the game ships with all of these on):
+//   C situational dial payoffs · D/S signature dials (+60% to suited paths' cards) · Q +1 renown a day per suited path
+//   K lean saves less · X realistic bot dials · P bots use signature dials · G focus-scaled Legendary bonus
+//   T sell surplus keeps 20 materials · F great works only for your leading path · J path trials · W top-path scoring tilt · Z builders' focus
+const DV = (typeof process !== 'undefined' && process.env && process.env.DV) || 'CDSQKXGTFJWZP';
+const V = k => DV.includes(k);
+if (V('B')) {
+  const big = (arr, mid) => arr.map((v, i) => i === 1 ? v : +(mid + (v - mid) * 1.5).toFixed(3));
+  ORDER_FX.work.output = big(ORDER_FX.work.output, 1); ORDER_FX.work.gold = big(ORDER_FX.work.gold, 0.8); ORDER_FX.work.harmony = big(ORDER_FX.work.harmony, 0);
+  ORDER_FX.table.eat = big(ORDER_FX.table.eat, 1); ORDER_FX.table.harmony = big(ORDER_FX.table.harmony, 0);
+  ORDER_FX.gates.raid = big(ORDER_FX.gates.raid, 1); ORDER_FX.gates.harmony = big(ORDER_FX.gates.harmony, 0);
+  ORDER_FX.guard.power = [0, 10, 35];
+}
+if (V('K')) ORDER_FX.table.eat = [0.82, 1, 1.4];
+// E: how long a dial has been held at today's setting (0 if it was just changed)
+const heldFor = (s, o, d) => (s.lastOrders && s.lastOrders[d] === o[d]) ? (s.held || {})[d] || 0 : 0;
+// D: each off-middle setting favours some paths' cards
+const SYN = { work: { 2: ['trade', 'craft'], 0: ['artisan', 'faith'] }, table: { 2: ['revelry', 'haven'], 0: ['harvest', 'shadow'] }, gates: { 0: ['haven', 'wander'], 2: ['shadow', 'might'] }, guard: { 2: ['might', 'herd'], 0: ['wander', 'faith'] } };
+const sigDials = p => Object.fromEntries(['work', 'table', 'gates', 'guard'].map(d => [d, +(Object.entries(SYN[d]).find(([, ps]) => ps.includes(p)) || [1])[0]]));
+const synOf = o => ['work', 'table', 'gates', 'guard'].flatMap(d => (SYN[d][o[d]] || []));
+const CARAVAN = x => hasCond(x.day, 'caravan') || x.W.event === 'caravan';
+const TRIALS = {
+  trade:   [['caravan', 'Sell to a caravan', x => CARAVAN(x) && ['trade', 'fair', 'goods'].includes(x.f) && x.o.gates !== 2],
+            ['pilgrims', 'Open the gates to pilgrims', x => hasCond(x.day, 'pilgrims') && x.o.gates === 0],
+            ['rest', 'Rest the workers on a feast day', x => hasCond(x.day, 'feast') && x.o.work === 0]],
+  might:   [['garrison', 'Hold a raid with the garrison out', x => x.raidHeld && x.o.guard === 2],
+            ['feed', 'Feed the soldiers on a freezing night', x => x.W.cold && x.o.table === 2],
+            ['stores', 'Stockpile before winter', x => x.f === 'stockpile']],
+  haven:   [['refuge', 'Take in families fleeing trouble', x => ['refugees', 'northfamilies', 'shelter'].includes(x.f)],
+            ['quarantine', 'Shut the gates against the fever', x => x.W.event === 'sickness' && x.o.gates === 2],
+            ['hunt', 'Bring in food on a good hunting day', x => hasCond(x.day, 'hunting') && ['harvest', 'forage', 'elk', 'highwoods'].includes(x.f)]],
+  harvest: [['store', 'Stockpile before the cold', x => x.f === 'stockpile'],
+            ['celebrate', 'Feast on a good hunting day', x => hasCond(x.day, 'hunting') && x.o.table === 2],
+            ['caravan', 'Sell to a caravan', x => CARAVAN(x) && ['trade', 'fair'].includes(x.f)]],
+  craft:   [['salvage', 'Salvage the storm or gather firewood', x => ['salvage', 'firewood', 'barge'].includes(x.f)],
+            ['rest', 'Rest the workers on a feast day', x => hasCond(x.day, 'feast') && x.o.work === 0],
+            ['season', 'Raise a building in building season', x => hasCond(x.day, 'build') && /^build_/.test(x.f || '')]],
+  revelry: [['rain', 'Celebrate the rain', x => ['rainfest', 'raindance', 'bard'].includes(x.f)],
+            ['ration', 'Ration the table through the drought', x => x.W.weather === 'drought' && x.o.table === 0],
+            ['hunt', 'Bring in food on a good hunting day', x => hasCond(x.day, 'hunting') && ['harvest', 'forage', 'elk', 'highwoods'].includes(x.f)]],
+  artisan: [['bram', 'Take on the stonecarver', x => x.f === 'bram'],
+            ['season', 'Work hard in building season', x => hasCond(x.day, 'build') && x.o.work === 2],
+            ['caravan', 'Trade with a caravan', x => CARAVAN(x) && ['trade', 'fair'].includes(x.f)]],
+  shadow:  [['contacts', 'Make friends in low places', x => ['cass', 'paytoll'].includes(x.f)],
+            ['pilgrims', 'Open the gates to pilgrims', x => hasCond(x.day, 'pilgrims') && x.o.gates === 0],
+            ['grain', 'Buy grain in the drought', x => x.f === 'importgrain']],
+  faith:   [['wren', 'Shelter Sister Wren', x => x.f === 'wren'],
+            ['quarantine', 'Shut the gates against the fever', x => x.W.event === 'sickness' && x.o.gates === 2],
+            ['tend', 'Tend the sick', x => x.f === 'tendsick']],
+  wander:  [['map', 'Buy Ada Quill\'s map', x => x.f === 'adamap'],
+            ['garrison', 'Put out a garrison on a raid day', x => x.W.event === 'raid' && x.o.guard === 2],
+            ['stores', 'Stockpile before winter', x => x.f === 'stockpile']],
+  herd:    [['calves', 'Buy the Drover\'s calves', x => x.f === 'calves'],
+            ['quarantine', 'Shut the gates against the fever', x => x.W.event === 'sickness' && x.o.gates === 2],
+            ['drive', 'Drive cattle to a caravan', x => CARAVAN(x) && x.f === 'drive']],
+};
+const trialsDone = (s, p) => ((s.trials || {})[p] || []).length;
+// Focus: your leading path's share of all your renown (builders count theirs generously: every building spreads renown)
+const LEGEND_BONUS = 0.6, FOCUS_MIN = 0.40, FOCUS_FULL = 0.65, GREAT_WORK_OPEN = 18;
+function focusShare(s, p) { const rn = s.renown || {}, total = Object.values(rn).reduce((x, y) => x + y, 0); p = p || renownSorted(rn)[0][0]; return total ? Math.min(1, (rn[p] || 0) / total * (V('Z') && p === 'craft' ? 1.6 : 1)) : 0; }
+const legendScale = s => Math.max(0, Math.min(1, (focusShare(s) - FOCUS_MIN) / (FOCUS_FULL - FOCUS_MIN)));
 const DIALS = [
   { id: 'work',  name: 'Work',  opts: ['Easy', 'Steady', 'Hard'],
-    arrows: ['Output ↓ · Gold ↓ · Harmony ↑↑', 'Steady', 'Output ↑ · Gold ↑ · Harmony ↓↓'],
-    hint: ['Output 85% · 0.5 Gold per settler · Harmony +10', 'Output 100% · 0.8 Gold per settler', 'Output 125% · 1.2 Gold per settler · Harmony −14'] },
+    arrows: ['Output ↓ · Gold ↓ · Harmony ↑↑', 'Steady', 'Output ↑ · Gold ↑ · Harmony ↓↓, worse every hard day'],
+    hint: ['Output 85% · 0.5 Gold per settler · Harmony +10', 'Output 100% · 0.8 Gold per settler', 'Output 125% · 1.2 Gold per settler · Harmony −14, and −3 more for each hard day in a row (up to −15)'] },
   { id: 'table', name: 'Table', opts: ['Lean', 'Normal', 'Feast'],
-    arrows: ['Food lasts longer · Harmony ↓', 'Steady', 'Food ↓↓ · Harmony ↑↑'],
-    hint: ['0.7 Food each · Harmony −8', '1 Food each', '1.4 Food each · Harmony +10'] },
+    arrows: ['Food lasts longer · Harmony ↓, worse every lean day', 'Steady', 'Food ↓↓ · Harmony ↑↑'],
+    hint: ['0.7 Food each · Harmony −8, and −2 more for each lean day in a row (up to −16)', '1 Food each', '1.4 Food each · Harmony +10 · free on hunting and feast days, 1.8 in a lean week'] },
   { id: 'gates', name: 'Gates', opts: ['Open', 'Watched', 'Shut'],
-    arrows: ['Settlers ↑↑ while people are happy · raids hit harder', 'Settlers ↑ while people are content', 'No newcomers · raids hit softer · Harmony ↓'],
-    hint: ['+2 settlers a day if Harmony 40+ · raids ×1.3', '+1 settler a day if Harmony 55+', 'No newcomers · raids ×0.6 · Harmony −4'] },
+    arrows: ['Settlers ↑↑ while people are happy · raids hit harder', 'Settlers ↑ while people are content', 'No newcomers · raids hit softer · Harmony ↓ · caravans pass you by'],
+    hint: ['+2 settlers a day if Harmony 40+ · raids ×1.3 · fever can get in on fever days', '+1 settler a day if Harmony 55+', 'No newcomers · raids ×0.6 · Harmony −4 · a caravan pays half'] },
   { id: 'guard', name: 'Guard', opts: ['None', 'Patrol', 'Garrison'],
-    arrows: ['Free · Power ↓', 'Power ↑ · costs a little Gold', 'Power ↑↑ · costs Gold and Food'],
-    hint: ['Power +0', 'Power +10 · 3 Gold a day', 'Power +25 · 8 Gold and 3 Food a day'] },
+    arrows: ['Free · Power ↓', 'Power ↑ · costs a little Gold', 'Power ↑↑ · costs Gold and Food, double Food in the cold'],
+    hint: ['Power +0', 'Power +10 · 3 Gold a day', 'Power +25 · 8 Gold and 3 Food a day (6 Food on freezing days)'] },
 ];
 const DEFAULT_ORDERS = { work: 1, table: 1, gates: 1, guard: 1 };
 
@@ -598,7 +691,7 @@ const BUILDINGS = {
   hall:     { name: 'Guest hall', cost: { materials: 15, gold: 10 }, desc: 'Harmony +4, one extra newcomer a day while people are content', story: 'Long tables and warm beds for anyone passing through.', arrows: 'Harmony ↑ · newcomers ↑ for good' },
 };
 const UPGRADE_AT = 40;
-const costOf = (s, cost) => has(s, 'lumberyard') ? Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.round(v * 0.75)])) : cost;
+const costOf = (s, cost) => { const k = (has(s, 'lumberyard') ? 0.75 : 1) * (hasCond(s.day, 'build') ? 0.75 : 1); return k < 1 ? Object.fromEntries(Object.entries(cost).map(([r, v]) => [r, Math.round(v * k)])) : cost; };
 const BUILD_RN = { fields: { harvest: 6 }, market: { trade: 6 }, tavern: { revelry: 6 }, palisade: { might: 6 }, sawmill: { craft: 6 }, hall: { haven: 6 },
   workshop: { artisan: 6 }, cellar: { shadow: 6 }, shrine: { faith: 6 }, lodge: { wander: 6 }, pasture: { herd: 6 },
   tradehall: { trade: 8 }, stonewall: { might: 8 }, hospice: { haven: 8 }, terraces: { harvest: 8 }, lumberyard: { craft: 8 }, greathall: { revelry: 8 },
@@ -634,7 +727,7 @@ const pay = (s, cost) => Object.entries(cost).forEach(([k, v]) => { s[k] -= v; }
 const LIVE_W = { wealth: 6, harmony: 0.8, power: 0.4 };
 // Happy neighbors keep an eye out for each other: Harmony 55+ counts as +15 against thieves
 const watchOf = (st, power) => power + (st.harmony >= 55 ? 15 : 0);
-function eatenPerDay(s, o) { return s.pop * ORDER_FX.table.eat[o.table]; }
+function eatenPerDay(s, o) { let e = ORDER_FX.table.eat[o.table]; if (o.table === 2) { if (hasCond(s.day, 'hunting') || hasCond(s.day, 'feast')) e = 1; else if (hasCond(s.day, 'lean')) e = 1.8; } return s.pop * e; }
 function stats(s, o) {
   const eat = eatenPerDay(s, o), days = eat > 0 ? s.food / eat : 9;
   const h = [['Base', 40]];
@@ -642,9 +735,12 @@ function stats(s, o) {
   else if (days >= 1) h.push(['Food is getting low', 5]);
   else h.push(['Hungry (less than a day of Food)', -15]);
   const hp = (lbl, v) => { if (v) h.push([lbl, v]); };
-  hp('Table: ' + DIALS[1].opts[o.table], ORDER_FX.table.harmony[o.table]);
+  hp('Table: ' + DIALS[1].opts[o.table], V('C') && o.table === 0 && (hasCond(s.day, 'lean') || (SCRIPT[s.day] || {}).weather === 'drought') ? 0 : ORDER_FX.table.harmony[o.table]);
+  if (V('E') && (o.table === 2 || o.work === 0)) hp('Settled routine', Math.min(5, heldFor(s, o, o.table === 2 ? 'table' : 'work')));
   hp('Work: ' + DIALS[0].opts[o.work], ORDER_FX.work.harmony[o.work]);
   hp('Gates: ' + DIALS[2].opts[o.gates], ORDER_FX.gates.harmony[o.gates]);
+  if (o.work === 2) hp('Worn out (' + (s.hardDays || 0) + ' hard days in a row)', -3 * Math.min(5, s.hardDays || 0));
+  if (o.table === 0) hp('Thinning out (' + (s.leanDays || 0) + ' lean days in a row)', V('L') ? -2 - 3 * Math.min(4, s.leanDays || 0) : -2 * Math.min(8, s.leanDays || 0));
   if (has(s, 'tavern')) hp('Tavern', 8);
   if (has(s, 'market')) hp('Market', 3);
   if (has(s, 'hall')) hp('Guest hall', 4);
@@ -658,6 +754,7 @@ function stats(s, o) {
   const p = [['Settlers as defenders', r0(s.pop * 1.5)]];
   const pp = (lbl, v) => { if (v) p.push([lbl, v]); };
   pp('Guard: ' + DIALS[3].opts[o.guard], ORDER_FX.guard.power[o.guard]);
+  if (V('E') && o.guard === 2) pp('Seasoned garrison', Math.min(10, 2 * heldFor(s, o, 'guard')));
   if (has(s, 'palisade')) pp('Palisade', 10);
   if (has(s, 'stonewall')) pp('Stone wall', 20);
   pp('Recent training', r0(s.training));
@@ -673,11 +770,11 @@ function stats(s, o) {
   const scoreH = clamp(harmony - r0(s.mood) * 0.5, 5, 100), scoreP = clamp(power - r0(s.training) * 0.5, 5, 100);
   // Wealth counts with diminishing returns, so a snowballing economy can't outrun everything else over a month
   const live = (wl, hh, pp) => r0(Math.sqrt(Math.max(0, wl)) * LIVE_W.wealth + hh * LIVE_W.harmony + pp * LIVE_W.power);
-  const livelihood = live(wealth, scoreH, scoreP), renown = renownScore(s.renown || {});
+  const livelihood = live(wealth, scoreH, scoreP), milestones = milestoneBonus(s), legend = V('G') && (s.greatWorks || []).includes(renownSorted(s.renown || {})[0][0]) ? r0(renownScore(s.renown || {}) * LEGEND_BONUS * legendScale(s)) : 0, renown = renownScore(s.renown || {}) + milestones + legend;
   const score = livelihood + renown;
   // Lasting score ignores temporary boosts entirely; the crowd reveal compares on this
   const lasting = live(wealth, clamp(harmony - r0(s.mood), 5, 100), clamp(power - r0(s.training), 5, 100)) + renown;
-  return { harmony, harmonyParts: h, power, powerParts: p, wealth, wealthParts: w, output, score, scoreH, scoreP, livelihood, renown, lasting, foodDays: days, identity: identity(s) };
+  return { harmony, harmonyParts: h, power, powerParts: p, wealth, wealthParts: w, output, milestones, legend, score, scoreH, scoreP, livelihood, renown, lasting, foodDays: days, identity: identity(s) };
 }
 
 // ---------- Words instead of numbers ----------
@@ -736,6 +833,19 @@ const COUNCIL = [
   { who: 'pip',    p: 5, when: (s, st, o, d) => W_(d).prices && W_(d).prices.materials >= 1.4 && W_(d).event !== 'caravan', line: 'Timber\'s fetching a fine price today, chief. Just saying.' },
   { who: 'pip',    p: 6, when: (s, st, o, d) => W_(d).event === 'caravan', line: 'A caravan! They pay well over market. I\'ve been waiting all week for this.' },
   { who: 'pip',    p: 3, when: s => s.materials >= 40, line: 'The yard is stacked with timber. Build something, or let me sell it.' },
+  { who: 'hollis', p: 8, when: (s, st, o, d) => W_(d).cold && o.guard === 2, line: 'We can\'t feed a garrison through this frost, chief. Those soldiers eat double in the cold.' },
+  { who: 'marta',  p: 8, when: (s, st, o, d) => hasCond(d, 'fever') && o.gates === 0, line: 'Close the gates until the fever passes. Sister Wren says it travels with strangers.' },
+  { who: 'pip',    p: 8, when: (s, st, o, d) => hasCond(d, 'caravan') && o.gates === 2, line: 'A caravan\'s coming, and our gates are shut. They\'ll take their gold somewhere else.' },
+  { who: 'pip',    p: 6, when: (s, st, o, d) => hasCond(d, 'caravan'), line: 'Caravan in town! Whatever we sell today sells for double.' },
+  { who: 'pip',    p: 6, when: (s, st, o, d) => hasCond(d, 'slump'), line: 'The market\'s in a slump. I\'d hold our goods a day or two.' },
+  { who: 'hollis', p: 7, when: (s, st, o, d) => hasCond(d, 'lean') && o.table === 2, line: 'Feasting in a lean week? That food won\'t come back.' },
+  { who: 'hollis', p: 5, when: (s, st, o, d) => hasCond(d, 'hunting'), line: 'The elk are thick in the high woods. Good day for a harvest or a hunt.' },
+  { who: 'hollis', p: 5, when: (s, st, o, d) => hasCond(d, 'build'), line: 'Dry and clear. Best building weather we\'ll get, and timber\'s cheap.' },
+  { who: 'marta',  p: 5, when: (s, st, o, d) => hasCond(d, 'feast'), line: 'A feast day. Anything that lifts spirits today goes twice as far.' },
+  { who: 'marta',  p: 5, when: (s, st, o, d) => hasCond(d, 'pilgrims'), line: 'Pilgrims on the road. An open gate and a lit shrine go a long way this week.' },
+  { who: 'rook',   p: 6, when: (s, st, o, d) => hasCond(d, 'raiders') && o.guard < 2, line: 'Riders spotted. If you want a garrison on the walls, now\'s the time.' },
+  { who: 'marta',  p: 7, when: (s, st, o) => o.work === 2 && (s.hardDays || 0) >= 3, line: 'Folks are dead on their feet. Another hard week and they\'ll start dropping.' },
+  { who: 'marta',  p: 6, when: (s, st, o) => o.table === 0 && (s.leanDays || 0) >= 3, line: 'Lean rations, day after day. People are thinning out, and so is their patience.' },
   { who: 'marta',  p: 1, when: (s, st, o, d) => d === 1, line: 'First morning, chief. The valley is watching to see what kind of leader you are.' },
   { who: 'hollis', p: 1, when: () => true, line: 'Weather\'s holding. The fields are doing what fields do.' },
   { who: 'pip',    p: 1, when: () => true, line: 'Quiet market today. Coins in, coins out.' },
@@ -860,29 +970,100 @@ const WEATHER_FOOD = { clear: 1, rain: 1.15, storm: 0.2, frost: 0.6, drought: 0.
 //   when(s), ok(s, st), apply(s, c) — apply pushes STORY lines to c.log
 //   (Harmony changes go through s.mood, Power through s.training)
 // ============================================================================
+// ---------- Alpha 2: the valley's conditions ----------
+// Each day may carry conditions that are the same for every village and show in the forecast.
+const CONDITIONS = {
+  build:   { name: 'Building season', icon: 'hammer', text: 'Buildings cost a quarter less. Hard work goes further.', cards: {}, dial: 'Work: Hard pays more' },
+  raiders: { name: 'Raiders seen', icon: 'swords', text: 'Riders are close. The black market pays half again.', cards: { blackmarket: 1.5 }, dial: 'Guard and Gates: get ready' },
+  caravan: { name: 'Caravan in town', icon: 'scales', text: 'Selling and fairs pay double, unless your gates are shut.', cards: { trade: 2, fair: 2 }, dial: 'Gates: Shut and the caravan skips you' },
+  hunting: { name: 'Good hunting', icon: 'wheat', text: 'Harvests, foraging and hunts bring in half again. A feast costs no extra food.', cards: { harvest: 1.5, forage: 1.5, elk: 1.5, highwoods: 1.5 }, dial: 'Table: Feast is free today' },
+  slump:   { name: 'Market slump', icon: 'coin', text: 'Selling, fine goods and fairs pay half.', cards: { trade: 0.5, goods: 0.5, fair: 0.5 }, dial: '' },
+  pilgrims:{ name: 'Pilgrim season', icon: 'candle', text: 'Rites and pilgrims bring half again. Open gates bring an extra settler.', cards: { rite: 1.5, pilgrims: 1.5 }, dial: 'Gates: Open brings +1 settler' },
+  lean:    { name: 'Lean week', icon: 'drought', text: 'Food is scarce everywhere. A feast eats almost double.', cards: {}, dial: 'Table: Feast eats almost double' },
+  fever:   { name: 'Fever rumour', icon: 'heart', text: 'Strangers may carry the fever in through open gates.', cards: {}, dial: 'Gates: Open risks the fever' },
+  feast:   { name: 'Feast day', icon: 'bunting', text: 'Festivals, tavern nights and rites lift spirits half again. A feast costs no extra food.', cards: { festival: 1.5, tavernnight: 1.5, rite: 1.5 }, dial: 'Table: Feast is free today' },
+};
+const COND_DAYS = { 1: ['build'], 2: ['build'], 3: ['hunting'], 4: ['raiders'], 6: ['caravan'], 8: ['slump'], 9: ['pilgrims'], 10: ['pilgrims'], 11: ['raiders'], 13: ['caravan'], 14: ['feast'],
+  15: ['lean'], 16: ['lean'], 17: ['lean'], 18: ['lean', 'raiders'], 19: ['fever'], 20: ['fever'], 21: ['hunting'], 22: ['slump'], 24: ['build'], 25: ['raiders'], 27: ['raiders'], 29: ['pilgrims'], 30: ['feast'] };
+const condsOn = d => COND_DAYS[d] || [];
+const hasCond = (d, k) => condsOn(d).includes(k);
+
+// ---------- Alpha 2: the daily hand ----------
+// Everyday cards are dealt: 8 a morning, seeded by the season and the day, tilted toward your top two paths.
+const HAND_SIZE = 8;
+let DEAL_SEED = 20261023;
+function setDealSeed(n) { DEAL_SEED = n; }
+const isDeck = f => ['core', 'gamble', 'unlock'].includes(f.kind) && !f.special && f.id !== 'buyfood';
+function topTwo(s) { return renownSorted(s.renown || {}).filter(x => x[1] > 0).slice(0, 2).map(x => x[0]); }
+function dealHand(s, day) {
+  const eligible = FOCUS.filter(f => isDeck(f) && (!f.when || f.when(s)));
+  if (eligible.length <= HAND_SIZE) return new Set(eligible.map(f => f.id));
+  // Tilt by your top paths as of the previous morning, so a scout's preview of tomorrow is exact
+  const tops = day === s.day && s.dealTops ? s.dealTops : topTwo(s);
+  let h = (DEAL_SEED * 31 + day * 7919) >>> 0; tops.forEach(t => { for (const ch of t) h = Math.imul(h ^ ch.charCodeAt(0), 2654435761) >>> 0; });
+  const rng = mulberry32(h), pool = eligible.map(f => ({ id: f.id, w: f.rn && tops.some(t => t in f.rn) ? 2 : 1 })), hand = new Set();
+  while (hand.size < HAND_SIZE && pool.length) {
+    let x = rng() * pool.reduce((a, p) => a + p.w, 0), i = 0;
+    while (x > pool[i].w) { x -= pool[i].w; i++; }
+    hand.add(pool[i].id); pool.splice(i, 1);
+  }
+  return hand;
+}
+
+// ---------- Alpha 2: fatigue ----------
+// The same everyday card on back-to-back days pays less; one you've rested 5+ days pays a little more.
+function fatigueOf(s, id) {
+  const f = FOCUS_BY_ID[id];
+  if (!f || !isDeck(f)) return { mult: 1, tag: '' };
+  // Played on one of the last two days: 70%. On both: 50%.
+  const recent = (s.recentPicks || []).filter(p => p.id === id && p.day >= s.day - 2).length, last = (s.lastPlayed || {})[id];
+  if (recent >= 2) return { mult: 0.5, tag: 'Tired 50%', n: 2 };
+  if (recent === 1) return { mult: 0.7, tag: 'Tired 70%', n: 1 };
+  if (last && s.day - last > 5) return { mult: 1.1, tag: 'In demand', n: 0 };
+  return { mult: 1, tag: '', n: 0 };
+}
+// Everything that scales today's Focus: fatigue and the day's conditions
+function focusMult(s, id, orders) {
+  let m = fatigueOf(s, id).mult;
+  if (V('D') && orders) { const f = FOCUS_BY_ID[id], syn = synOf(orders); if (f && f.rn && Object.keys(f.rn).some(t => syn.includes(t))) m *= V('S') ? 1.6 : 1.35; }
+  if (V('M') && orders && FOCUS_BY_ID[id]) { const mids = ['work', 'table', 'gates', 'guard'].filter(d => orders[d] === 1).length; m *= 1 + 0.06 * mids; }
+  condsOn(s.day).forEach(k => { const c = CONDITIONS[k].cards[id]; if (c) m *= (k === 'caravan' && orders && orders.gates === 2) ? 0.5 : c; });
+  return m;
+}
+
 const FOCUS = [
   { id: 'harvest', short: 'Harvest', rn: { harvest: 0 }, emoji: '🌾', kind: 'core', name: 'Bring in the harvest', story: 'Everyone to the fields while the weather holds.', arrows: 'Food ↑↑', fx: 'About +15 Food (weather and Harmony matter)',
-    apply(s, c) { const f = r0((s.pop * 1.25 + (has(s, 'fields') ? 4 : 0)) * c.weatherFood * c.toolBonus * c.output); s.food += f; c.rn('harvest', Math.min(16, r0(f / 1.9))); c.log.push(c.weatherFood < 0.5 ? 'You sent everyone into the storm to save the crop. They saved what little they could.' : 'Carts of grain rolled in until sunset. Hollis was grinning.'); } },
-  { id: 'trade', short: 'Sell surplus', rn: { trade: 2 }, emoji: '🛒', kind: 'core', name: 'Sell surplus at market', story: 'Pip loads the carts with spare timber and grain.', arrows: 'Materials ↓ · spare Food ↓ · Gold ↑↑', fx: 'Sell Materials above 10 and Food above 5 days, at today\'s prices, and Pip haggles 20% extra',
+    apply(s, c) { const f = r0((s.pop * 1.25 + (has(s, 'fields') ? 4 : 0)) * c.weatherFood * c.toolBonus * c.output); s.food += f; c.rn('harvest', Math.min(14, r0(f / 2.2))); c.log.push(c.weatherFood < 0.5 ? 'You sent everyone into the storm to save the crop. They saved what little they could.' : 'Carts of grain rolled in until sunset. Hollis was grinning.'); } },
+  { id: 'trade', short: 'Sell surplus', rn: { trade: 5 }, emoji: '🛒', kind: 'core', name: 'Sell surplus at market', story: 'Pip loads the carts with spare timber and grain.', arrows: 'Materials ↓ · spare Food ↓ · Gold ↑↑', fx: 'Sell Materials above 10 and Food above 5 days, at today\'s prices, and Pip haggles 20% extra',
     apply(s, c) {
-      const mat = Math.max(0, s.materials - 10), food = Math.max(0, r0(s.food - c.eat * 5));
+      const mat = Math.max(0, s.materials - (V('T') ? 20 : 10)), food = Math.max(0, r0(s.food - c.eat * 5));
       const g = r0((mat * c.prices.materials + food * c.prices.food) * 1.2);
       s.materials -= mat; s.food -= food; s.gold += g; c.rn('trade', Math.min(17, r0(g / 4)));
       c.log.push(g > 25 ? 'Pip came back with a heavy purse and a big smile.' : g > 0 ? 'Pip sold what he could. Not a great day for it.' : 'Pip found nothing worth selling.');
     } },
-  { id: 'drill', short: 'Drill militia', rn: { might: 8 }, emoji: '⚔️', kind: 'core', name: 'Drill the militia', story: 'Rook wants a full day of training. Nobody else will enjoy it.', arrows: 'Power ↑↑ for a few days · Gold ↓ · Harmony ↓', fx: '−5 Gold → Power +15 (fades 20% a day, counts half toward score) · Harmony −3',
+  { id: 'drill', short: 'Drill militia', rn: { might: 15 }, emoji: '⚔️', kind: 'core', name: 'Drill the militia', story: 'Rook wants a full day of training. Nobody else will enjoy it.', arrows: 'Power ↑↑ for a few days · Gold ↓ · Harmony ↓', fx: '−5 Gold → Power +15 (fades 20% a day, counts half toward score) · Harmony −3',
     ok: s => s.gold >= 5 || 'Needs 5 Gold for weapons and food',
     apply(s, c) { s.training += 15; s.mood -= 3; s.gold -= 5; c.log.push('Rook drilled the militia until dark. They\'re sore, and sharper for it.'); } },
-  { id: 'festival', short: 'Festival', rn: { revelry: 10 }, emoji: '🎪', kind: 'core', name: 'Hold a festival', story: 'Music, roasted grain, and a day off for everyone.', arrows: 'Food ↓ · Harmony ↑↑ now and ↑ for good (more when Work is Easy)', fx: '−10 Food → Harmony +14 now (+24 with Work on Easy) and +4 for good',
+  { id: 'festival', short: 'Festival', rn: { revelry: 14 }, emoji: '🎪', kind: 'core', name: 'Hold a festival', story: 'Music, roasted grain, and a day off for everyone.', arrows: 'Food ↓ · Harmony ↑↑ now and ↑ for good (more when Work is Easy)', fx: '−10 Food → Harmony +14 now (+24 with Work on Easy) and +4 for good',
     ok: s => s.food >= 10 || 'Needs 10 Food',
     apply(s, c) { s.food -= has(s, 'greathall') ? 5 : 10; const h = c.orders.work === 0 ? 24 : 14; s.mood += h; s.legacy = Math.min(12, (s.legacy || 0) + 4); c.log.push(c.orders.work === 0 ? 'With the whole day off, the festival ran until dawn. Even Marta danced.' : 'The festival ran late into the night. People needed that.'); } },
   { id: 'scout', short: 'Scout', rn: { might: 3, craft: 2, wander: 4 }, emoji: '🔭', kind: 'core', name: 'Scout the frontier', story: 'Send riders out to see what\'s coming.', arrows: 'See 4 days ahead · Materials ↑', fx: 'Reveal 4 days in exact detail · +10 Materials',
     apply(s, c) { s.scoutedUntil = Math.max(s.scoutedUntil, c.day + (has(s, 'lodge') ? 6 : 4)); s.materials += 10; c.log.push('The scouts came back dusty, with news of the days ahead.'); } },
-  { id: 'welcome', short: 'Welcome newcomers', rn: { haven: 9 }, emoji: '🚪', kind: 'core', name: 'Welcome newcomers', story: 'Ride to the crossroads and offer work to anyone willing.', arrows: 'Settlers ↑ · Food ↓', fx: '−6 Food → +4 Settlers',
+  { id: 'welcome', short: 'Welcome newcomers', rn: { haven: 12 }, emoji: '🚪', kind: 'core', name: 'Welcome newcomers', story: 'Ride to the crossroads and offer work to anyone willing.', arrows: 'Settlers ↑ · Food ↓', fx: '−6 Food → +4 Settlers',
     apply(s, c) { s.pop += 4; s.food -= 6; c.log.push('Four newcomers followed you home. More hands, more mouths.'); } },
-  { id: 'prospect', short: 'Prospect', rn: { trade: 12 }, emoji: '🎲', kind: 'gamble', odds: '3 in 10: a silver seam · 7 in 10: nothing', name: 'Prospect the hills', story: 'An old miner swears there\'s silver up there.', arrows: 'Maybe Gold ↑↑↑', fx: '30%: +45 Gold · 70%: nothing',
+  { id: 'forage', short: 'Forage', rn: { harvest: 13 }, emoji: '🧺', kind: 'core', name: 'Forage the hills', story: 'Baskets, berries, mushrooms and windfall wood from the high meadows.', arrows: 'Food ↑ · Materials ↑', fx: '+10 Food · +4 Materials (more on hunting days)',
+    apply(s, c) { s.food += r0(10 * c.weatherFood); s.materials += 4; c.log.push('The foragers came down from the hills with full baskets and an armful of firewood each.'); } },
+  { id: 'neighbors', short: 'Lend a hand', rn: { haven: 10 }, emoji: '🤝', kind: 'core', name: 'Lend a hand next door', story: 'Send a crew to help a struggling farm down the valley.', arrows: 'Food ↓ · Harmony ↑', fx: '−8 Food → Harmony +5',
+    apply(s, c) { s.food -= 8; s.mood += 5; c.log.push('Your crew mended a neighbor\'s roof and shared a meal. Word of it got around.'); } },
+  { id: 'trails', short: 'Chart trails', rn: { wander: 15 }, emoji: '🗺️', kind: 'core', name: 'Chart the valley trails', story: 'Walk the deer paths and mark the passes on a fresh map.', arrows: 'Materials ↑ · see further ahead', fx: '+6 Materials · see 2 more days ahead',
+    apply(s, c) { s.materials += 6; s.scoutedUntil = Math.max(s.scoutedUntil, s.day + 2); c.log.push('Your trail-walkers came back with a new map and a cart of deadwood.'); } },
+  { id: 'mend', short: 'Mend and build', rn: { craft: 12 }, emoji: '🔨', kind: 'core', name: 'Mend roads and roofs', story: 'Patch the roofs, re-hang the gates, lay stone on the muddy lanes.', arrows: 'Materials ↓ · Harmony ↑', fx: '−6 Materials → Harmony +4',
+    ok: s => s.materials >= 6 || 'Needs 6 Materials', apply(s, c) { s.materials -= 6; s.mood += 4; c.log.push('The lanes are dry underfoot and the roofs stopped leaking. People noticed.'); } },
+  { id: 'dairy', short: 'Milk and shear', rn: { herd: 9 }, emoji: '🥛', kind: 'core', name: 'Milk and shear the herd', story: 'Pails of milk, bales of wool, and a few wheels of cheese for market.', arrows: 'Food ↑ · Gold ↑', fx: '+3 Food plus more for a bigger herd (up to +19) · +4 Gold', when: s => (s.herd || 0) > 0,
+    apply(s, c) { s.food += 3 + Math.min(16, Math.round((s.herd || 0) * 0.4)); s.gold += 4; c.log.push('Milk, wool and cheese: the herd paid its way today.'); } },
+  { id: 'prospect', short: 'Prospect', rn: { trade: 15 }, emoji: '🎲', kind: 'gamble', odds: '3 in 10: a silver seam · 7 in 10: nothing', name: 'Prospect the hills', story: 'An old miner swears there\'s silver up there.', arrows: 'Maybe Gold ↑↑↑', fx: '30%: +45 Gold · 70%: nothing',
     apply(s, c) { if (c.rng() < 0.3) { s.gold += 45; c.log.push('Silver! The prospectors struck a seam and came home shouting.'); c.gambleWon = true; } else { c.log.push('The prospectors came back with nothing but blisters.'); c.gambleWon = false; } } },
-  { id: 'banditcamp', short: 'Raid bandits', rn: { might: 14 }, emoji: '🎲', kind: 'gamble', odds: 'Better than even: loot · otherwise: losses', name: 'Raid the bandit camp', story: 'Hit the bandits in the gorge before they hit you. Needs a strong militia.', arrows: 'Maybe Gold ↑↑ · or Settlers ↓', fx: 'Needs Power 40+ · 55%: +35 Gold, Power +8 · 45%: lose 2 settlers, Harmony −8',
+  { id: 'banditcamp', short: 'Raid bandits', rn: { might: 16 }, emoji: '🎲', kind: 'gamble', odds: 'Better than even: loot · otherwise: losses', name: 'Raid the bandit camp', story: 'Hit the bandits in the gorge before they hit you. Needs a strong militia.', arrows: 'Maybe Gold ↑↑ · or Settlers ↓', fx: 'Needs Power 40+ · 55%: +35 Gold, Power +8 · 45%: lose 2 settlers, Harmony −8',
     when: s => !(s.campBack > s.day), ok: (s, st) => st.power >= 40 || 'Rook says you\'re not strong enough yet',
     apply(s, c) { s.campBack = c.day + 5; if (c.rng() < 0.55) { s.gold += 35; s.training += 8; c.log.push('The raid on the bandit camp worked. Your people came home with their strongbox.'); c.gambleWon = true; } else { s.pop -= 2; s.mood -= 8; c.log.push('The raid went badly. Two settlers didn\'t come back.'); c.gambleWon = false; } } },
 
@@ -890,7 +1071,7 @@ const FOCUS = [
   { id: 'wonder', rn: { artisan: 15 }, emoji: '🗿', kind: 'core', short: 'Great work', name: 'Work on the great work', story: 'Carvers and masons put another day into the monument in the square.', arrows: 'Materials ↓ · great work ↑', fx: '−10 Materials → great work +10 (more with a workshop and sharp tools)',
     when: s => !s.wonderDone, ok: s => s.materials >= 10 || 'Needs 10 Materials',
     apply(s, c) { s.materials -= 10; s.wonder = Math.min(100, (s.wonder || 0) + 10 + (has(s, 'workshop') ? 4 : 0) + (s.tools ? 2 : 0)); c.log.push(s.wonder >= 100 ? 'The last stone went up at sunset.' : `The great work rises in the square. It's about ${Math.round(s.wonder / 10) * 10}% done.`); } },
-  { id: 'adorn', rn: { artisan: 13 }, emoji: '🗿', kind: 'core', short: 'Adorn the work', name: 'Adorn the great work', story: 'Gilding, carvings and a new mosaic for the monument everyone comes to see.', arrows: 'Materials ↓ · Harmony ↑ · more visitors', fx: '−8 Materials → Harmony +3, +2 Gold a day from visitors (up to +10)',
+  { id: 'adorn', rn: { artisan: 15 }, emoji: '🗿', kind: 'core', short: 'Adorn the work', name: 'Adorn the great work', story: 'Gilding, carvings and a new mosaic for the monument everyone comes to see.', arrows: 'Materials ↓ · Harmony ↑ · more visitors', fx: '−8 Materials → Harmony +3, +2 Gold a day from visitors (up to +10)',
     when: s => s.wonderDone, ok: s => s.materials >= 8 || 'Needs 8 Materials',
     apply(s, c) { s.materials -= 8; s.mood += 3; s.adorn = Math.min(5, (s.adorn || 0) + 1); c.log.push('New carvings on the great work. Visitors linger longer every time.'); } },
   { id: 'blackmarket', rn: { shadow: 11 }, emoji: '🎭', kind: 'core', short: 'Black market', name: 'Run the black market', story: 'Pip\'s cousin knows people. No questions asked, no receipts given.', arrows: 'Gold ↑↑ (more on troubled days) · Harmony ↓', fx: '+12 Gold, +10 more on a day of storms, raids or caravans · Harmony −4',
@@ -898,7 +1079,7 @@ const FOCUS = [
   { id: 'rite', rn: { faith: 12 }, emoji: '🕯️', kind: 'core', short: 'Seasonal rite', name: 'Hold a seasonal rite', story: 'Candles, old songs and an offering at the stones.', arrows: 'Food ↓ · Harmony ↑ · blessed for 3 days (bad weather hurts less)', fx: '−5 Food → Harmony +6 · blessed for 3 days: storms and frost hurt much less',
     ok: s => s.food >= 5 || 'Needs 5 Food for the offering',
     apply(s, c) { s.food -= 5; s.mood += 6; s.blessed = has(s, 'temple') ? 5 : 3; c.log.push('The whole village walked to the stones at dusk. People feel watched over.'); } },
-  { id: 'expedition', rn: { wander: 13 }, emoji: '🧭', kind: 'core', short: 'Expedition', name: 'Send out an expedition', story: 'A small party heads past the edge of the map.', odds: s => `${Math.round(siteOdds(s) * 10)} in 10: they find somewhere new · otherwise: timber and stories`, arrows: 'Maybe a new site for good · Food ↓', fx: 'Chance to discover a site: silver mine, hidden valley, hot springs, mountain pass or ruins. Once all are found, it charts the far country for timber and renown',
+  { id: 'expedition', rn: { wander: 17 }, emoji: '🧭', kind: 'core', short: 'Expedition', name: 'Send out an expedition', story: 'A small party heads past the edge of the map.', odds: s => `${Math.round(siteOdds(s) * 10)} in 10: they find somewhere new · otherwise: timber and stories`, arrows: 'Maybe a new site for good · Food ↓', fx: 'Chance to discover a site: silver mine, hidden valley, hot springs, mountain pass or ruins. Once all are found, it charts the far country for timber and renown',
     ok: s => s.food >= 4 || 'Needs 4 Food for the road',
     apply(s, c) { s.food -= 4; const left0 = Object.keys(SITES).filter(k => !(s.sites || []).includes(k)); if (left0.length && c.rng() < siteOdds(s)) { const left = Object.keys(SITES).filter(k => !(s.sites || []).includes(k)); const k = left.at(Math.floor(c.rng() * left.length)); s.sites = (s.sites || []).concat(k); if (k === 'ruins') s.gold += 40; c.rn('wander', 6); c.log.push(`The expedition found ${SITES[k].name}! ${SITES[k].desc.replace(/^\+/, 'That means +')}.`); } else { s.materials += 6; c.log.push('The expedition came back with timber, sore feet and a lot of stories.'); } } },
   { id: 'buyherd', rn: { herd: 7 }, emoji: '🐄', kind: 'core', short: 'Buy livestock', name: 'Buy breeding stock', story: 'A drover from the plains will sell you a few good animals.', arrows: 'Gold ↓ · herd ↑ (it grows by itself)', fx: '−15 Gold → +4 head. Herds grow every day and are worth 3 Wealth a head',
@@ -907,7 +1088,7 @@ const FOCUS = [
   { id: 'drive', rn: { herd: 0 }, emoji: '🐄', kind: 'core', short: 'Cattle drive', name: 'Drive cattle to market', story: 'Take half the herd down the valley road and sell them.', arrows: 'Herd ↓ · Gold ↑↑↑', fx: 'Sell half the herd for 5 Gold a head',
     when: s => (s.herd || 0) >= 8,
     apply(s, c) { const half = Math.floor(s.herd / 2); s.herd -= half; s.gold += half * (has(s, 'ranch') ? 7 : 5); c.rn('herd', Math.min(16, half)); c.log.push(`The drovers sold ${half} head at market and came home with a heavy purse.`); } },
-  { id: 'goods', rn: { artisan: 10, trade: 2 }, emoji: '🏺', kind: 'unlock', short: 'Fine goods', name: 'Sell fine goods', story: 'The workshop\'s best pieces go to market.', arrows: 'Materials ↓ · Gold ↑↑', fx: '−8 Materials → +20 Gold', when: s => has(s, 'workshop'),
+  { id: 'goods', rn: { artisan: 12, trade: 2 }, emoji: '🏺', kind: 'unlock', short: 'Fine goods', name: 'Sell fine goods', story: 'The workshop\'s best pieces go to market.', arrows: 'Materials ↓ · Gold ↑↑', fx: '−8 Materials → +20 Gold', when: s => has(s, 'workshop'),
     ok: s => s.materials >= 8 || 'Needs 8 Materials',
     apply(s, c) { s.materials -= 8; s.gold += has(s, 'atelier') ? 30 : 20; c.log.push('Buyers came from three villages to see the workshop\'s pieces.'); } },
   { id: 'smuggle', rn: { shadow: 10 }, emoji: '📦', kind: 'unlock', short: 'Smuggling run', name: 'Run goods past the toll road', story: 'A moonless night and a cart with a false bottom.', arrows: 'Gold ↑↑ · Materials ↑', fx: '+18 Gold, +5 Materials · Harmony −2', when: s => has(s, 'cellar'),
@@ -1001,11 +1182,11 @@ const FOCUS = [
   { id: 'healer', short: 'Hire a healer', rn: { trade: 3 }, emoji: '🛒', kind: 'special', name: 'Hire a travelling healer', story: 'A healer is passing through. She doesn\'t come cheap.', arrows: 'Gold ↓ · no one lost to the fever', fx: '−20 Gold → nobody is lost to the fever',
     ok: s => s.gold >= 20 || 'Needs 20 Gold',
     apply(s, c) { s.gold -= 20; c.tended = true; c.log.push('The healer worked through the night. Everyone pulled through.'); } },
-  { id: 'fair', short: 'Host a fair', rn: { trade: 10, revelry: 4 }, emoji: '🎡', kind: 'unlock', name: 'Host a fair', story: 'Your market draws traders from all over the valley.', arrows: 'Gold ↑↑ · Harmony ↑', fx: '+22 Gold · Harmony +8', when: s => has(s, 'market'),
+  { id: 'fair', short: 'Host a fair', rn: { trade: 15, revelry: 4 }, emoji: '🎡', kind: 'unlock', name: 'Host a fair', story: 'Your market draws traders from all over the valley.', arrows: 'Gold ↑↑ · Harmony ↑', fx: '+22 Gold · Harmony +8', when: s => has(s, 'market'),
     apply(s, c) { s.gold += 22; s.mood += 8; c.log.push('The fair was packed. Pip counted coins until midnight.'); } },
-  { id: 'tavernnight', short: 'Tavern night', rn: { revelry: 13 }, emoji: '🍺', kind: 'unlock', name: 'Tavern night', story: 'Drinks on the house. Mostly.', arrows: 'Harmony ↑↑ · Gold ↑ · Food ↓', fx: '−5 Food → Harmony +12 · +8 Gold', when: s => has(s, 'tavern'),
+  { id: 'tavernnight', short: 'Tavern night', rn: { revelry: 14 }, emoji: '🍺', kind: 'unlock', name: 'Tavern night', story: 'Drinks on the house. Mostly.', arrows: 'Harmony ↑↑ · Gold ↑ · Food ↓', fx: '−5 Food → Harmony +12 · +8 Gold', when: s => has(s, 'tavern'),
     apply(s, c) { s.mood += 12; s.gold += 8; s.food -= 5; c.log.push('A loud, happy night at the tavern. Someone wrote a song about you. It\'s not flattering, but it\'s affectionate.'); } },
-  { id: 'walls', short: 'Man the walls', rn: { might: 9 }, emoji: '🛡️', kind: 'unlock', name: 'Man the walls', story: 'Everyone takes a shift on the palisade.', arrows: 'Power ↑↑↑ for a few days', fx: 'Power +22 (fades 20% a day)', when: s => has(s, 'palisade'),
+  { id: 'walls', short: 'Man the walls', rn: { might: 14 }, emoji: '🛡️', kind: 'unlock', name: 'Man the walls', story: 'Everyone takes a shift on the palisade.', arrows: 'Power ↑↑↑ for a few days', fx: 'Power +22 (fades 20% a day)', when: s => has(s, 'palisade'),
     apply(s, c) { s.training += 22; c.log.push('Torches on every post, eyes on every road. Rook approved.'); } },
 
   // Daily specials
@@ -1041,7 +1222,7 @@ const FOCUS = [
     apply(s, c) { c.raidAvoided = true; c.hiding = true; c.log.push('By dusk the whole town was in the caves. The raiders found empty streets and bare storehouses, and left cursing.'); } },
   { id: 'caravan', short: 'Caravan trade', rn: { trade: 3 }, emoji: '🐫', kind: 'special', name: 'Trade with the caravan', story: 'Caravan buyers pay well over market, and they carry spices.', arrows: 'Materials ↓ · spare Food ↓ · Gold ↑↑↑ · Harmony ↑', fx: 'Sells at 25% over market · Harmony +6',
     apply(s, c) {
-      const mat = Math.max(0, s.materials - 10), food = Math.max(0, r0(s.food - c.eat * 5));
+      const mat = Math.max(0, s.materials - (V('T') ? 20 : 10)), food = Math.max(0, r0(s.food - c.eat * 5));
       const bonus = s.met.tinker === 'hired' ? 1.4 : s.met.tinker === 'refused' ? 1.1 : 1.25;
       const g = r0(mat * c.prices.materials * bonus + food * c.prices.food * bonus);
       s.materials -= mat; s.food -= food; s.gold += g; s.mood += 6; c.rn('trade', Math.min(14, r0(g / 6)));
@@ -1050,14 +1231,14 @@ const FOCUS = [
   { id: 'cards', short: 'Card sharp', rn: { trade: 6 }, emoji: '🎲', kind: 'gamble', special: true, odds: 'Slightly worse than even: double your bet, or lose it', name: 'Play the caravan\'s card sharp', story: 'He swears the game is fair. He has a lot of rings.', arrows: 'Maybe Gold ↑↑ · or Gold ↓', fx: 'Bet 20 · 45%: +40 Gold · 55%: −20 Gold',
     ok: s => s.gold >= 20 || 'Needs 20 Gold to sit down',
     apply(s, c) { if (c.rng() < 0.45) { s.gold += 40; c.log.push('You beat the card sharp. He took it badly.'); c.gambleWon = true; } else { s.gold -= 20; c.log.push('The card sharp was not fair. You suspected as much.'); c.gambleWon = false; } } },
-  { id: 'stockpile', short: 'Stockpile', rn: { harvest: 13 }, emoji: '📦', kind: 'special', name: 'Stockpile for winter', story: 'Fill every storehouse before the cold settles in.', arrows: 'Food ↑↑ · Materials ↑', fx: '+20 Food · +10 Materials',
+  { id: 'stockpile', short: 'Stockpile', rn: { harvest: 16 }, emoji: '📦', kind: 'special', name: 'Stockpile for winter', story: 'Fill every storehouse before the cold settles in.', arrows: 'Food ↑↑ · Materials ↑', fx: '+20 Food · +10 Materials',
     apply(s, c) { s.food += 20; s.materials += 10; c.log.push('The storehouses are packed to the doors.'); } },
   { id: 'bonfire', short: 'Great bonfire', rn: { revelry: 14 }, emoji: '🔥', kind: 'special', name: 'Light the great bonfire', story: 'The whole town around one fire, on the coldest night yet.', arrows: 'Materials ↓ · Harmony ↑↑↑', fx: '−15 Materials → Harmony +18',
     ok: s => s.materials >= 15 || 'Needs 15 Materials',
     apply(s, c) { s.materials -= 15; s.mood += 18; c.log.push(s.met.bard ? 'The whole town gathered at the bonfire. The bard came back to sing, and nobody wanted the night to end.' : 'The whole town gathered at the bonfire. For one night, nobody felt the cold.'); } },
 ];
 Object.entries(BUILDINGS).forEach(([id, b]) => FOCUS.push({
-  id: 'build_' + id, rn: { craft: 1, ...BUILD_RN[id] }, emoji: '🔨', kind: 'build', short: 'Build ' + b.name.toLowerCase(), name: 'Build: ' + b.name, story: b.story, arrows: `Materials ↓ · Gold ↓ · ${b.arrows}`, cost: b.cost,
+  id: 'build_' + id, rn: { craft: 3, ...BUILD_RN[id] }, emoji: '🔨', kind: 'build', short: 'Build ' + b.name.toLowerCase(), name: 'Build: ' + b.name, story: b.story, arrows: `Materials ↓ · Gold ↓ · ${b.arrows}`, cost: b.cost,
   fx: `−${b.cost.materials} Materials, −${b.cost.gold} Gold → ${b.desc} · worth ${BUILDING_VALUE} Wealth`, upgrade: !!b.upgradeOf,
   when: s => !has(s, id) && (!b.upgradeOf || (has(s, b.upgradeOf) && (s.renown[b.path] || 0) >= UPGRADE_AT)),
   ok: s => { const c = costOf(s, b.cost); return canAfford(s, c) || `Needs ${c.materials} Materials and ${c.gold} Gold`; },
@@ -1066,7 +1247,7 @@ Object.entries(BUILDINGS).forEach(([id, b]) => FOCUS.push({
 Object.entries(GREAT_WORKS).forEach(([path, g]) => FOCUS.push({
   id: 'gw_' + path, rn: { [path]: 6 }, emoji: '✨', kind: 'rare', short: g.name, name: 'Build the ' + g.name, story: g.story, arrows: 'Materials ↓ · Gold ↓ · a lasting landmark', path,
   fx: '−15 Materials, −10 Gold → a third of the way there. Finish it for big renown, Harmony for good and +4 Gold a day',
-  when: s => s.day >= GREAT_WORK_DAY && (s.renown[path] || 0) >= GREAT_WORK_AT && !(s.greatWorks || []).includes(path),
+  when: s => (V('J') ? s.day >= GREAT_WORK_OPEN && trialsDone(s, path) >= 3 : s.day >= GREAT_WORK_DAY && (s.renown[path] || 0) >= GREAT_WORK_AT) && !(s.greatWorks || []).includes(path) && (!V('F') || (renownSorted(s.renown)[0][0] === path && focusShare(s, path) >= FOCUS_MIN)),
   ok: s => (s.materials >= 15 && s.gold >= 10) || 'Needs 15 Materials and 10 Gold',
   apply(s, c) {
     s.materials -= 15; s.gold -= 10; s.gw = { ...(s.gw || {}) }; s.gw[path] = Math.min(100, (s.gw[path] || 0) + 34);
@@ -1083,6 +1264,11 @@ const FX_TABLE = {
   festival: ['10 Food', 'Harmony +14 now, +4 for good', '+24 now if Work is Easy'],
   scout: ['', '+10 Materials', 'See the next 4 days in full'],
   welcome: ['6 Food', '+4 Settlers', ''],
+  forage: ['', '+10 Food, +4 Materials', 'Weather matters'],
+  neighbors: ['8 Food', 'Harmony +5', ''],
+  trails: ['', '+6 Materials, see 2 more days', ''],
+  dairy: ['', '+3 Food or more, +4 Gold', 'Needs a herd'],
+  mend: ['6 Materials', 'Harmony +4', ''],
   prospect: ['', '30%: +45 Gold', '70%: nothing'],
   banditcamp: ['Needs Power 40+; the camp takes 5 days to regroup', '55%: +35 Gold, Power +8', '45%: lose 2 settlers, Harmony −8'],
   fair: ['', '+22 Gold, Harmony +8', 'Needs a market'],
@@ -1156,9 +1342,11 @@ Object.entries(BUILDINGS).forEach(([id, b]) => { FX_TABLE['build_' + id] = [`${b
 function focusOptions(s, day, orders) {
   const st = stats(s, orders || DEFAULT_ORDERS);
   const specials = (SCRIPT[day] && SCRIPT[day].specials) || [];
+  const hand = dealHand(s, day);
   return FOCUS.filter(f => {
     const isSpecial = f.kind === 'special' || f.special;
     if (isSpecial) return specials.includes(f.id) && (!f.when || f.when(s));
+    if (isDeck(f)) return hand.has(f.id);
     return !f.when || f.when(s);
   }).map(f => { const ok = f.ok ? f.ok(s, st) : true; return { f, ok: ok === true, why: ok === true ? '' : ok }; });
 }
@@ -1168,7 +1356,7 @@ function newSettlement(orders) {
   s.score = stats(s, orders || DEFAULT_ORDERS).score; s.ranked = s.score;
   return s;
 }
-const cloneS = s => ({ ...s, buildings: s.buildings.slice(), history: s.history.slice(), met: { ...s.met }, sites: (s.sites || []).slice(), titlesSeen: (s.titlesSeen || []).slice(), gw: { ...(s.gw || {}) }, greatWorks: (s.greatWorks || []).slice(), renown: { ...blankRenown(), ...(s.renown || {}) } });
+const cloneS = s => ({ ...s, buildings: s.buildings.slice(), history: s.history.slice(), met: { ...s.met }, sites: (s.sites || []).slice(), titlesSeen: (s.titlesSeen || []).slice(), gw: { ...(s.gw || {}) }, greatWorks: (s.greatWorks || []).slice(), renown: { ...blankRenown(), ...(s.renown || {}) }, dealTops: (s.dealTops || []).slice(), recentPicks: (s.recentPicks || []).slice(), milestones: { ...(s.milestones || {}) }, trials: Object.fromEntries(Object.entries(s.trials || {}).map(([k, v]) => [k, v.slice()])), held: { ...(s.held || {}) }, lastOrders: s.lastOrders ? { ...s.lastOrders } : null, lastPlayed: { ...(s.lastPlayed || {}) } });
 
 // ---------- Resolve one day ----------
 // Returns story lines (log), number lines (ledger), and consequence lines (echo)
@@ -1193,46 +1381,64 @@ function resolveDay(s0, orders, focusId, rng) {
   const row = (label, d) => { const r = { label, food: r0(d.food || 0), gold: r0(d.gold || 0), materials: r0(d.materials || 0), pop: r0(d.pop || 0) }; if (r.food || r.gold || r.materials || r.pop) flow.push(r); };
   const mark = label => { const now = res(); row(label, { food: now.food - snap.food, gold: now.gold - snap.gold, materials: now.materials - snap.materials, pop: now.pop - snap.pop }); snap = now; };
 
+  if (V('E') && s.lastOrders) { const changed = ['work', 'table', 'gates', 'guard'].filter(d => s.lastOrders[d] !== orders[d]).length; if (changed) s.mood -= 3 * changed; }
   // Choices that come back: the tinker you turned away on day 1
   if (day === 2 && !s.met.tinker) s.met.tinker = 'refused';
 
   // 1. The Focus
   const f = FOCUS_BY_ID[focusId];
-  if (f) { f.apply(s, c); if (c.gambleWon !== false) addRn(f.rn); ledger.push(`Focus: ${f.name} (${typeof f.fx === 'function' ? f.fx(s0) : f.fx}).`); mark('Focus: ' + f.name); }
+  const fm = f ? focusMult(s, focusId, orders) : 1, fat = f ? fatigueOf(s, focusId) : { mult: 1, tag: '' };
+  if (f) {
+    const keys = ['food', 'gold', 'materials', 'pop', 'mood', 'training', 'herd', 'wonder'], pre = Object.fromEntries(keys.map(k => [k, s[k] || 0]));
+    const rn0 = c.rn; if (fm !== 1) c.rn = (t, n) => rn0(t, r0(n * fm));
+    const spot = (f.kind === 'special' || f.special) ? spotlightOn(day) : [];
+    f.apply(s, c); if (c.gambleWon !== false) addRn(Object.fromEntries(Object.entries(f.rn || {}).map(([t, n]) => [t, spot.includes(t) ? r0(n * 1.5) : n])));
+    c.rn = rn0;
+    if (fm !== 1) keys.forEach(k => { const d = (s[k] || 0) - pre[k]; if (d > 0) s[k] = pre[k] + (k === 'pop' || k === 'herd' ? Math.round(d * fm) : r0(d * fm)); });
+    ledger.push(`Focus: ${f.name} (${typeof f.fx === 'function' ? f.fx(s0) : f.fx})${fm !== 1 ? ` · today ×${fm.toFixed(2)}${fat.tag ? ' (' + fat.tag.toLowerCase() + ')' : ''}` : ''}.`); mark('Focus: ' + f.name);
+    if (isDeck(f)) { s.lastPlayed[focusId] = day; s.recentPicks = (s.recentPicks || []).filter(p => p.day >= day - 2).concat({ id: focusId, day }); }
+  }
   else log.push('No focus today. The settlement ran on standing orders.');
 
   // 2. Standing orders run everything else
-  const work = ORDER_FX.work.output[orders.work] * c.output * (c.hiding ? 0.5 : 1);
+  const work = ORDER_FX.work.output[orders.work] * (orders.work === 2 && hasCond(day, 'build') ? (V('C') ? 1.4 : 1.12) : 1) * (V('E') && orders.work === 2 ? 1 + Math.min(0.15, 0.03 * heldFor(s0, orders, 'work')) : 1) * c.output * (c.hiding ? 0.5 : 1);
   const sites = s.sites || [];
   const foodMade = r0((s.pop * 1.0 * work + (has(s, 'fields') ? 4 : 0) + (terr ? 6 : 0) + (s.well ? 4 : 0) + (has(s, 'pasture') ? 2 : 0) + (sites.includes('valley') ? 5 : 0) + (s.secondCrop ? 4 : 0) + (s.ashfordLand ? 4 : 0) + (s.herd || 0) * 0.25) * c.weatherFood * c.toolBonus);
   const matMade = r0((s.pop * 0.35 * work + (has(s, 'sawmill') ? 6 : 0) + (has(s, 'lumberyard') ? 8 : 0) + (sites.includes('pass') ? 2 : 0) + (s.woodcutters ? 3 : 0)) * c.toolBonus);
   const sideGold = (has(s, 'tradehall') ? 6 : 0) + (has(s, 'tunnel') ? 8 : 0) + 4 * (s.greatWorks || []).filter(p => p !== 'artisan').length + (has(s, 'workshop') ? 3 : 0) + (has(s, 'cellar') ? 4 : 0) + (has(s, 'shrine') ? 2 + Math.min(6, Math.floor((s.renown.faith || 0) / 15)) : 0) + (sites.includes('mine') ? 5 : 0) + (sites.includes('pass') ? 3 : 0) + (s.met.ashford ? 2 : 0) + (s.wonderDone ? 4 + 2 * (s.adorn || 0) : 0);
-  const taxGold = r0((s.pop * ORDER_FX.work.gold[orders.work] + (has(s, 'market') ? 6 : 0)) * c.output) + sideGold;
+  const taxGold = r0((s.pop * ORDER_FX.work.gold[orders.work] + (has(s, 'market') ? 6 : 0)) * c.output * (V('C') && orders.work === 2 && (hasCond(day, 'caravan') || W.event === 'caravan') ? 1.5 : 1)) + sideGold;
   const eaten = r0(eatenPerDay(s, orders));
-  const upkeepGold = ORDER_FX.guard.gold[orders.guard], upkeepFood = ORDER_FX.guard.food[orders.guard];
+  const upkeepGold = ORDER_FX.guard.gold[orders.guard], upkeepFood = ORDER_FX.guard.food[orders.guard] * (orders.guard === 2 && W.cold ? 2 : 1);
   s.food += foodMade - eaten - upkeepFood; s.materials += matMade; s.gold += taxGold - upkeepGold;
   let newcomers = 0;
   if (orders.gates === 0 && st0.harmony >= 50) newcomers = 2;
   if (orders.gates === 1 && st0.harmony >= 55) newcomers = 1;
   if (has(s, 'hall') && orders.gates < 2 && st0.harmony >= 55) newcomers += 1;
   if (has(s, 'hospice') && orders.gates < 2 && st0.harmony >= 60) newcomers += 1;
+  if (orders.gates === 0 && hasCond(day, 'pilgrims') && st0.harmony >= 40) newcomers += V('C') ? 3 : 1;
+  if (V('E') && orders.gates === 0 && heldFor(s0, orders, 'gates') >= 3 && st0.harmony >= 40) newcomers += 1;
   s.pop += newcomers;
+  let feverIn = 0;
+  if (orders.gates === 0 && hasCond(day, 'fever') && newcomers && rng() < 0.4) { feverIn = Math.max(1, r0(s.pop * 0.06)); s.pop -= feverIn; s.mood -= 4; log.push(`Newcomers brought the fever in through the open gate. ${feverIn === 1 ? 'One settler' : feverIn + ' settlers'} didn't make it.`); }
   row('Work and taxes', { food: foodMade, materials: matMade, gold: taxGold });
   row('Eating', { food: -eaten });
   row('Guard upkeep', { food: -upkeepFood, gold: -upkeepGold });
   row('Newcomers arriving', { pop: newcomers });
+  if (feverIn) row('Fever through the open gate', { pop: -feverIn });
   snap = res();
   // Your orders and buildings shape what the valley knows you for
   DIALS.forEach(d => addRn(DIAL_RENOWN[d.id][orders[d.id]]));
-  s.buildings.forEach(b => addRn(BUILDING_RENOWN[b]));
+  if (V('R') || V('Q')) synOf(orders).forEach(t => c.rn(t, V('R') ? 2 : 1));
+  const bRn = {}; s.buildings.forEach(b => Object.entries(BUILDING_RENOWN[b] || {}).forEach(([t, n]) => bRn[t] = (bRn[t] || 0) + n));
+  Object.entries(bRn).forEach(([t, n]) => c.rn(t, Math.min(4, Math.ceil(n / 2))));
   if (s.well) c.rn('harvest', 1);
   // Herds grow on their own; a workshop chips away at the great work
-  if (s.herd) { s.herd += Math.max(1, Math.floor(s.herd * (has(s, 'ranch') ? 0.15 : has(s, 'pasture') ? 0.12 : 0.07))); c.rn('herd', Math.min(5, Math.floor(s.herd / 6))); }
+  if (s.herd) { s.herd += Math.max(1, Math.floor(s.herd * (has(s, 'ranch') ? 0.15 : has(s, 'pasture') ? 0.12 : 0.07) * (s.herd > 40 ? 0.5 : 1))); c.rn('herd', Math.min(5, Math.floor(s.herd / 6))); }
   if (has(s, 'workshop') && !s.wonderDone) s.wonder = Math.min(100, (s.wonder || 0) + (has(s, 'atelier') ? 8 : 4));
   if ((s.wonder || 0) >= 100 && !s.wonderDone) { s.wonderDone = true; c.rn('artisan', 40); s.legacy = Math.min(20, (s.legacy || 0) + 6); echo.push('The great work is finished. People stand in the square just to look at it, and travellers come from far away to see it.'); ledger.push('Great work finished: Artistry +40, Harmony +8 for good, +4 Gold a day from visitors.'); }
   if (blessed) s.blessed -= 1;
   if (has(s, 'maproom')) s.scoutedUntil = Math.max(s.scoutedUntil, day + 7);
-  if (s.wonderDone && !(s.greatWorks || []).includes('artisan')) s.greatWorks = (s.greatWorks || []).concat('artisan');
+  if (s.wonderDone && !(s.greatWorks || []).includes('artisan') && (!V('J') || trialsDone(s, 'artisan') >= 3)) s.greatWorks = (s.greatWorks || []).concat('artisan');
   ledger.push(`Standing orders: +${foodMade} Food made, −${eaten} eaten, +${matMade} Materials, +${taxGold} Gold in taxes. Harmony ${st0.harmony} gave output ×${st0.output.toFixed(2)}.`);
   if (upkeepGold) ledger.push(`Militia upkeep: −${upkeepGold} Gold${upkeepFood ? `, −${upkeepFood} Food` : ''}.`);
   if (newcomers && !(day % 2)) log.push(['A couple of families arrived at the open gate, looking for work.', 'A newcomer drifted in and asked for work.', 'Word of your settlement is spreading. More people arrived.'].at((day >> 1) % 3));
@@ -1270,10 +1476,11 @@ function resolveDay(s0, orders, focusId, rng) {
   }
   mark('Earlier choices paying off');
   // 4. Power protects your stores
+  if (V('C') && W.event === 'raid' && orders.guard === 2) c.tempPower += 25;
   const stNow = stats(s, orders), defense = stNow.power + c.tempPower;
   if (W.event === 'raid' && !c.raidAvoided) {
-    const need = r0(W.raid * (day === 12 && s.met.road === 'cleared' ? 1.25 : 1) * ORDER_FX.gates.raid[orders.gates] * ((s.renown.shadow || 0) >= 30 ? 0.7 : 1) * (has(s, 'stonewall') ? 0.8 : 1));
-    if (defense >= need) { if (day === 28) s.met.warbandHeld = true; s.mood += 8; s.training -= 5; c.rn(c.allies && stNow.power < need ? 'haven' : 'might', c.allies && stNow.power < need ? 10 : 15); log.push(c.allies && stNow.power < need ? 'The raiders hit the gates at dusk. Your neighbors stood shoulder to shoulder with your people, and the raiders broke.' : 'The raiders hit the gates at dusk and broke against them. People cheered from the walls.'); }
+    const need = r0(W.raid * (day === 12 && s.met.road === 'cleared' ? 1.25 : 1) * (V('C') && orders.gates === 2 ? 0.4 : ORDER_FX.gates.raid[orders.gates]) * ((s.renown.shadow || 0) >= 30 ? 0.7 : 1) * (has(s, 'stonewall') ? 0.8 : 1));
+    if (defense >= need) { c.raidHeld = true; if (day === 28) s.met.warbandHeld = true; s.mood += 8; s.training -= 5; c.rn(c.allies && stNow.power < need ? 'haven' : 'might', c.allies && stNow.power < need ? 14 : 17); log.push(c.allies && stNow.power < need ? 'The raiders hit the gates at dusk. Your neighbors stood shoulder to shoulder with your people, and the raiders broke.' : 'The raiders hit the gates at dusk and broke against them. People cheered from the walls.'); }
     else {
       const frac = Math.min(0.5, (need - defense) / need + 0.15);
       const g = r0(s.gold * frac), m = r0(s.materials * frac);
@@ -1289,14 +1496,15 @@ function resolveDay(s0, orders, focusId, rng) {
     const g = r0(s.gold * 0.15); s.gold -= g;
     log.push('Bandits on the road took their cut of everything that moved today.'); ledger.push(`Road toll: −${g} Gold (15%).`);
   }
+  if (V('C') && W.event === 'sickness' && orders.gates === 2) c.tended = true;
   if (W.event === 'sickness') {
     if (c.tended || has(s, 'hospice')) { s.mood -= 2; log.push(has(s, 'hospice') && !c.tended ? 'A fever went round, but the hospice took in everyone who fell ill. Nobody was lost.' : 'The fever passed through, and everyone came out the other side.'); }
-    else { const lost = Math.max(1, r0(s.pop * (blessed ? 0.05 : 0.1))); s.pop -= lost; s.mood -= 8; log.push(`A fever swept through the village. ${lost === 1 ? 'One settler' : lost + ' settlers'} didn't make it.`); ledger.push(`Sickness: −${lost} Settlers.`); }
+    else { const lost = Math.max(1, r0(s.pop * (blessed ? 0.05 : 0.1) * (V('C') && orders.gates === 0 ? 2 : 1))); s.pop -= lost; s.mood -= 8; log.push(`A fever swept through the village. ${lost === 1 ? 'One settler' : lost + ' settlers'} didn't make it.`); ledger.push(`Sickness: −${lost} Settlers.`); }
   }
   if (W.event === 'winter' || W.cold) {
     const night = day === 7 ? 'The first winter night came' : 'Another freezing night came';
     if (W.cold && !has(s, 'lumberyard')) { const wood = Math.ceil(s.pop * 0.4); if (s.materials >= wood) { s.materials -= wood; ledger.push(`Firewood: −${wood} Materials.`); } else { s.mood -= 6; log.push('There wasn\'t enough firewood to go round. Houses went cold.'); } }
-    if (s.food >= s.pop * (blessed ? 1 : 2)) { s.mood += 10; c.rn('harvest', 8); if (blessed) c.rn('faith', 4); log.push(night + ', and the granary was full. Everyone ate well and slept warm.'); }
+    if (s.food >= s.pop * (blessed ? 1 : 2)) { s.mood += 10; c.rn('harvest', 5); if (blessed) c.rn('faith', 4); log.push(night + ', and the granary was full. Everyone ate well and slept warm.'); }
     else { s.mood -= 10; log.push(night + ', and the granary ran thin. People went to bed hungry.'); }
     ledger.push(`Winter night: needed ${s.pop * 2} Food in store.`);
   }
@@ -1309,8 +1517,36 @@ function resolveDay(s0, orders, focusId, rng) {
   s.food = r0(s.food); s.gold = r0(s.gold); s.materials = Math.max(0, r0(s.materials));
   if (!log.length) log.push('A quiet day.');
 
+  if (V('C') && orders.table === 2 && (hasCond(day, 'hunting') || hasCond(day, 'feast'))) s.mood += 10;
+  if (V('C') && orders.table === 2 && W.cold) s.mood += 6;
+  // Your orders, in one line for the Chronicle
+  const op = [];
+  if (orders.work === 2) op.push(`hard work raised output a quarter${(s.hardDays || 0) ? `, but people are worn out (Harmony −${3 * Math.min(5, s.hardDays)})` : ''}`);
+  if (orders.work === 0) op.push('easy work kept spirits up (Harmony +10)');
+  if (orders.table === 2) op.push(`the feast ate ${eaten} food`);
+  if (orders.table === 0) op.push(`lean rations saved ${r0(s.pop * 0.3)} food${(s.leanDays || 0) ? ` (Harmony −${8 + 2 * Math.min(8, s.leanDays)})` : ' (Harmony −8)'}`);
+  if (orders.gates === 0 && newcomers) op.push(`the open gate let in ${newcomers} settler${newcomers > 1 ? 's' : ''}`);
+  if (orders.gates === 2) op.push(hasCond(day, 'caravan') ? 'the shut gates turned the caravan away' : 'the shut gates kept everyone out');
+  if (orders.guard === 2) op.push(`the garrison cost ${upkeepGold} gold and ${upkeepFood} food`);
+  if (orders.guard === 1) op.push(`the patrol cost ${upkeepGold} gold`);
+  const ordersLine = op.length ? 'Your orders: ' + op.slice(0, 3).join('; ') + '.' : 'Your orders kept things steady.';
+  s.dealTops = topTwo(s0);
+  if (V('E')) { const h = {}; ['work', 'table', 'gates', 'guard'].forEach(d => h[d] = (s0.lastOrders && s0.lastOrders[d] === orders[d] ? (s0.held || {})[d] || 0 : 0) + 1); s.held = h; s.lastOrders = { ...orders }; }
+  s.hardDays = orders.work === 2 ? (s.hardDays || 0) + 1 : 0;
+  s.leanDays = orders.table === 0 ? (s.leanDays || 0) + 1 : 0;
+
   // 6. Recent events and training fade
   s.mood = r0(s.mood * 0.7); s.training = Math.max(0, r0(s.training * 0.8));
+
+  const newTrials = [];
+  if (V('J')) { const x = { day, f: focusId, o: orders, W, W1: SCRIPT[day + 1] || {}, raidHeld: !!c.raidHeld, sitesBefore: (s0.sites || []).length, sitesAfter: (s.sites || []).length }; Object.entries(TRIALS).forEach(([p, list]) => list.forEach(([id, name, test]) => { const done = (s.trials || {})[p] || []; if (!done.includes(id) && test(x)) { s.trials = { ...(s.trials || {}), [p]: done.concat(id) }; newTrials.push({ path: p, id, name }); } })); }
+  // Upkeep: the path you led with this morning fades 2% on a day you give it nothing
+  const topAtDawn = renownSorted(s0.renown || {})[0];
+  let faded = 0;
+  if (topAtDawn[1] >= 20 && !gained[topAtDawn[0]]) { faded = Math.max(1, r0(s.renown[topAtDawn[0]] * 0.02)); s.renown[topAtDawn[0]] -= faded; }
+  // Milestones
+  const newMilestones = [];
+  TRACK_IDS.forEach(t => { const lvl = MILESTONES.filter(([at]) => (s.renown[t] || 0) >= at).length; if (lvl > ((s.milestones || {})[t] || 0)) { for (let i = ((s.milestones || {})[t] || 0); i < lvl; i++) newMilestones.push({ path: t, at: MILESTONES[i][0], bonus: MILESTONES[i][1] }); s.milestones = { ...(s.milestones || {}), [t]: lvl }; } });
 
   // 7. Score, with the daily swing cap on the ranked score
   const st1 = stats(s, orders);
@@ -1323,7 +1559,7 @@ function resolveDay(s0, orders, focusId, rng) {
   // Announce a reputation only when it's one the village hasn't been called before (no flip-flopping)
   const seen = s.titlesSeen || [], newTitle = titleAfter && !seen.includes(titleAfter) ? titleAfter : null;
   if (newTitle) s.titlesSeen = seen.concat(titleAfter);
-  return { s, log, ledger, echo, flow, net, before, renown: gained, idBefore, idAfter, titleBefore: comboOf(s0) || idBefore, titleAfter, newTitle, firstTitle: newTitle && !seen.length, after: { food: s.food, gold: s.gold, materials: s.materials, pop: s.pop, harmony: st1.harmony, power: st1.power, wealth: st1.wealth, foodDays: st1.foodDays }, gambleWon: c.gambleWon };
+  return { s, log, ledger, echo, flow, net, before, ordersLine, faded: faded ? { path: topAtDawn[0], n: faded } : null, newTrials, newMilestones, focusMult: fm, fatigue: fat.tag, renown: gained, idBefore, idAfter, titleBefore: comboOf(s0) || idBefore, titleAfter, newTitle, firstTitle: newTitle && !seen.length, after: { food: s.food, gold: s.gold, materials: s.materials, pop: s.pop, harmony: st1.harmony, power: st1.power, wealth: st1.wealth, foodDays: st1.foodDays }, gambleWon: c.gambleWon };
 }
 
 // ---------- The simulated crowd ----------
@@ -1336,20 +1572,22 @@ const PATH_DIALS = {
   haven:   { work: 1, table: 1, gates: 0, guard: 0 },
   harvest: { work: 1, table: 0, gates: 1, guard: 1 },
   craft:   { work: 2, table: 1, gates: 1, guard: 1 },
-  revelry: { work: 0, table: 2, gates: 1, guard: 1 },
+  revelry: { work: 0, table: 1, gates: 1, guard: 1 },
   artisan: { work: 1, table: 1, gates: 1, guard: 1 },
   shadow:  { work: 2, table: 1, gates: 2, guard: 0 },
   faith:   { work: 0, table: 1, gates: 0, guard: 1 },
   wander:  { work: 1, table: 1, gates: 1, guard: 1 },
   herd:    { work: 1, table: 0, gates: 1, guard: 1 },
 };
+if (V('P')) TRACK_IDS.forEach(p => { PATH_DIALS[p] = sigDials(p); });
 function makeCrowd(n, seed) {
   const rng = mulberry32(seed);
   const pick = a => a[Math.floor(rng() * a.length)];
   return Array.from({ length: n }, (_, i) => {
     // Every bot has a personality: a path it leans toward, and dials that mostly match it
     const path = TRACK_IDS[Math.floor(rng() * TRACK_IDS.length)], o = {};
-    DIALS.forEach(d => { const x = rng(); o[d.id] = x < 0.6 ? PATH_DIALS[path][d.id] : x < 0.75 ? 0 : x < 0.9 ? 1 : 2; });
+    if (V('X')) { const kind = rng(); DIALS.forEach(d => { o[d.id] = kind < 0.4 ? 1 : kind < 0.8 ? PATH_DIALS[path][d.id] : Math.floor(rng() * 3); }); }
+    else DIALS.forEach(d => { const x = rng(); o[d.id] = x < 0.6 ? PATH_DIALS[path][d.id] : x < 0.75 ? 0 : x < 0.9 ? 1 : 2; });
     return { name: pick(BOT_FIRST) + "'s " + pick(BOT_FIRST).toLowerCase().slice(0, 3) + pick(BOT_PLACE), orders: o, path, s: newSettlement(o), rng: mulberry32(seed * 31 + i * 977), skill: rng() };
   });
 }
@@ -1362,7 +1600,7 @@ function botChoose(bot) {
     if (f.kind === 'gamble') v += 0.4;
     if (f.id === 'scout' && bot.s.day <= 4) v += bot.skill;
     if (f.id === 'drill' && bot.s.day === 4) v += 2 * bot.skill;
-    if (f.rn && f.rn[bot.path]) v += 0.8 + 2 * bot.skill;
+    if (f.rn && bot.path in f.rn) v += 1.5 + 3 * bot.skill;
     return v;
   });
   let x = bot.rng() * w.reduce((a, b) => a + b, 0);
@@ -1416,7 +1654,7 @@ function gradePick(ev, id) {
   return ratio >= 0.98 ? 'best' : ratio >= 0.9 ? 'solid' : 'weak';
 }
 
-if (typeof module !== 'undefined') module.exports = { BUILDINGS: typeof BUILDINGS !== 'undefined' ? BUILDINGS : {}, GREAT_WORKS, MONTH, comboOf, COMBO_TITLES, SITES, setSeasonLength, ensureScript, TRACKS, TRACK_IDS, PATH_DIALS, identity, renownScore, FX_TABLE, evaluateDay, gradePick, SEASON, ORDER_FX, DIALS, DEFAULT_ORDERS, BUILDINGS, SCRIPT, FORECAST, FOCUS, FOCUS_BY_ID, MOODS, CAST, council, focusOptions, stats, newSettlement, resolveDay, makeCrowd, stepCrowd, mulberry32 };
+if (typeof module !== 'undefined') module.exports = { SYN, synOf, focusShare, legendScale, LEGEND_BONUS, FOCUS_MIN, FOCUS_FULL, GREAT_WORK_OPEN, TRIALS, trialsDone, sigDials, leaning, milestoneBonus, MILESTONES, TITLE_DAY, SPOTLIGHT, spotlightOn, RENOWN_TOP, RENOWN_REST, CONDITIONS, COND_DAYS, condsOn, hasCond, dealHand, setDealSeed, isDeck, fatigueOf, focusMult, HAND_SIZE, BUILDINGS: typeof BUILDINGS !== 'undefined' ? BUILDINGS : {}, GREAT_WORKS, MONTH, comboOf, COMBO_TITLES, SITES, setSeasonLength, ensureScript, TRACKS, TRACK_IDS, PATH_DIALS, identity, renownScore, FX_TABLE, evaluateDay, gradePick, SEASON, ORDER_FX, DIALS, DEFAULT_ORDERS, BUILDINGS, SCRIPT, FORECAST, FOCUS, FOCUS_BY_ID, MOODS, CAST, council, focusOptions, stats, newSettlement, resolveDay, makeCrowd, stepCrowd, mulberry32 };
 
 </script>
 <script>
@@ -2045,7 +2283,7 @@ kwwwwwk
 kkkkkkk`,
 };
 const FOCUS_ICON = {
-  harvest: 'wheat', trade: 'scales', drill: 'sword', festival: 'bunting', scout: 'spyglass', welcome: 'door', prospect: 'pickaxe', banditcamp: 'swords',
+  harvest: 'wheat', trade: 'scales', drill: 'sword', festival: 'bunting', scout: 'spyglass', welcome: 'door', forage: 'bucket', neighbors: 'house', trails: 'tent', dairy: 'crate', mend: 'wrench', prospect: 'pickaxe', banditcamp: 'swords',
   fair: 'tent', tavernnight: 'mug', walls: 'tower', tinker: 'wrench', elk: 'antlers', bard: 'note', barge: 'log', well: 'bucket', refugees: 'bundle',
   shelter: 'house', salvage: 'axe', mercs: 'helmet', parley: 'flag', caravan: 'wagon', cards: 'card', stockpile: 'crate', bonfire: 'flame',
   tribute: 'pouch', hide: 'cave', wonder: 'statue', adorn: 'statue', blackmarket: 'mask', rite: 'candle', expedition: 'compass', buyherd: 'cow', drive: 'cow',
@@ -2100,8 +2338,8 @@ const THEMES = {
     res: { food: 'Fish', gold: 'Coin', materials: 'Supplies', pop: 'Crew' },
     words: [[/\bFood\b/g, 'Fish'], [/\bGold\b/g, 'Coin'], [/\bMaterials\b/g, 'Supplies'], [/\bTimber\b/g, 'Supply'], [/\bsettlers\b/g, 'crew'], [/\bsettler\b/g, 'crew hand'], [/\bHarmony\b/g, 'Spirits'], [/\bPower\b/g, 'Hull'], [/\bWealth\b/g, 'Catch'], [/\bsettlement\b/g, 'fleet'], [/\bRaiders\b/g, 'Pirates'], [/\braiders\b/g, 'pirates'], [/\bharvests?\b/g, 'hauls'], [/\bfields\b/g, 'nets'], [/\bFarms\b/g, 'Nets'], [/\bfarms\b/g, 'nets'], [/\bmilitia\b/g, 'deck watch'], [/\bvalley\b/g, 'harbor'], [/\btown\b/g, 'harbor'], [/\bgates\b/g, 'hulls'], [/\bwalls\b/g, 'rails'], [/\bthe farmer\b/g, 'the net-mender'], [/\bgranary\b/g, 'fish hold'], [/\bcrops?\b/g, 'catch']],
     titles: { trade: 'Trading Port', might: 'Warfleet', haven: 'Safe Harbor', harvest: 'Great Catch', craft: "Shipwrights' Yard", revelry: 'Merry Fleet', artisan: 'Figurehead Carvers', shadow: "Smugglers' Cove", faith: 'Lighthouse Shrine', wander: 'Far Voyagers', herd: 'Oyster Beds' },
-    shorts: { harvest: 'Haul nets', trade: 'Fish market', drill: 'Drill crew', festival: 'Deck party', scout: 'Lookout', welcome: 'New hands', prospect: 'Pearl dive', banditcamp: 'Board sloop', fair: 'Harbor fair', tavernnight: 'Galley feast', walls: 'Batten down', tinker: 'Shipwright', elk: 'Herring run', bard: 'Shanty singer', barge: 'Rope and tar', well: 'Fresh water', refugees: 'Rescue survivors', shelter: 'Tow boat in', salvage: 'Salvage', mercs: 'Privateers', parley: 'Parley', caravan: 'Merchant ship', cards: 'Dice game', stockpile: 'Salt fish', bonfire: 'Harbor beacon', tribute: 'Pay pirates', hide: 'Sea caves', wonder: 'Great lighthouse', adorn: 'Adorn lighthouse', blackmarket: 'Black market', rite: 'Bless boats', expedition: 'Voyage', buyherd: 'Seed oysters', drive: 'Oyster harvest', goods: 'Figureheads', smuggle: 'Contraband', pilgrims: 'Pilgrims', raiderdeal: 'Deal with pirates' },
-    names: { wonder: 'Work on the great lighthouse', adorn: 'Adorn the great lighthouse', blackmarket: 'Run the dockside black market', rite: 'Bless the boats', expedition: 'Sail past the edge of the charts', buyherd: 'Seed new oyster beds', drive: 'Harvest the oyster beds', goods: 'Sell carved figureheads', smuggle: 'Run contraband past the customs boat', pilgrims: 'Welcome the lighthouse pilgrims', raiderdeal: 'Sell supplies to the pirates', tribute: 'Pay the pirates to sail on', hide: 'Hide the fleet in the sea caves', harvest: 'Haul the nets', trade: 'Sell at the fish market', drill: 'Drill the crew', festival: 'Throw a deck party', scout: 'Send the lookout aloft', welcome: 'Sign on new hands', prospect: 'Dive for pearls', banditcamp: 'Board a pirate sloop', fair: 'Host a harbor fair', tavernnight: 'Galley feast', walls: 'Batten down the hatches', tinker: 'Hire the stranded shipwright', elk: 'Chase the herring run', bard: 'Let the shanty singer aboard', barge: 'Buy cheap rope and tar', well: 'Drill for fresh water', refugees: 'Rescue shipwreck survivors', shelter: 'Tow in a storm-hit boat', salvage: 'Salvage the storm wreckage', mercs: 'Hire privateers for the day', parley: 'Parley with the pirates', caravan: 'Trade with the merchant ship', cards: "Dice with the merchant's mate", stockpile: 'Salt fish for winter', bonfire: 'Light the harbor beacon' },
+    shorts: { forage: 'Comb shore', neighbors: 'Lend a hand', trails: 'Chart shoals', dairy: 'Tend beds', mend: 'Mend hulls', harvest: 'Haul nets', trade: 'Fish market', drill: 'Drill crew', festival: 'Deck party', scout: 'Lookout', welcome: 'New hands', prospect: 'Pearl dive', banditcamp: 'Board sloop', fair: 'Harbor fair', tavernnight: 'Galley feast', walls: 'Batten down', tinker: 'Shipwright', elk: 'Herring run', bard: 'Shanty singer', barge: 'Rope and tar', well: 'Fresh water', refugees: 'Rescue survivors', shelter: 'Tow boat in', salvage: 'Salvage', mercs: 'Privateers', parley: 'Parley', caravan: 'Merchant ship', cards: 'Dice game', stockpile: 'Salt fish', bonfire: 'Harbor beacon', tribute: 'Pay pirates', hide: 'Sea caves', wonder: 'Great lighthouse', adorn: 'Adorn lighthouse', blackmarket: 'Black market', rite: 'Bless boats', expedition: 'Voyage', buyherd: 'Seed oysters', drive: 'Oyster harvest', goods: 'Figureheads', smuggle: 'Contraband', pilgrims: 'Pilgrims', raiderdeal: 'Deal with pirates' },
+    names: { forage: 'Comb the shore for crabs and driftwood', neighbors: 'Lend a hand to a struggling crew', trails: 'Chart the shoals and channels', dairy: 'Tend and harvest the oyster beds', mend: 'Mend hulls and rigging', wonder: 'Work on the great lighthouse', adorn: 'Adorn the great lighthouse', blackmarket: 'Run the dockside black market', rite: 'Bless the boats', expedition: 'Sail past the edge of the charts', buyherd: 'Seed new oyster beds', drive: 'Harvest the oyster beds', goods: 'Sell carved figureheads', smuggle: 'Run contraband past the customs boat', pilgrims: 'Welcome the lighthouse pilgrims', raiderdeal: 'Sell supplies to the pirates', tribute: 'Pay the pirates to sail on', hide: 'Hide the fleet in the sea caves', harvest: 'Haul the nets', trade: 'Sell at the fish market', drill: 'Drill the crew', festival: 'Throw a deck party', scout: 'Send the lookout aloft', welcome: 'Sign on new hands', prospect: 'Dive for pearls', banditcamp: 'Board a pirate sloop', fair: 'Host a harbor fair', tavernnight: 'Galley feast', walls: 'Batten down the hatches', tinker: 'Hire the stranded shipwright', elk: 'Chase the herring run', bard: 'Let the shanty singer aboard', barge: 'Buy cheap rope and tar', well: 'Drill for fresh water', refugees: 'Rescue shipwreck survivors', shelter: 'Tow in a storm-hit boat', salvage: 'Salvage the storm wreckage', mercs: 'Hire privateers for the day', parley: 'Parley with the pirates', caravan: 'Trade with the merchant ship', cards: "Dice with the merchant's mate", stockpile: 'Salt fish for winter', bonfire: 'Light the harbor beacon' },
     buildings: { fields: 'Net racks', sawmill: 'Ropewalk', market: 'Fish market', tavern: 'Galley', palisade: 'Breakwater', hall: 'Sailors\' hall', workshop: 'Carving shed', cellar: "Smugglers' cove", shrine: 'Lighthouse shrine', lodge: 'Chart house', pasture: 'Oyster beds' },
     dials: { work: 'Shifts', table: 'Galley', gates: 'Hiring', guard: 'Deck watch' },
     headlines: { 1: 'Calm seas. Your first morning in harbor.', 2: 'Supply merchants are paying well today.', 3: 'Soft rain. The fish are biting.', 4: 'A storm rolls in off the sea.', 5: 'Black sails on the horizon. Pirates.', 6: 'A merchant ship drops anchor, holds full.', 7: 'First frost. Tonight is the first winter night.' },
@@ -2510,17 +2748,20 @@ function nightfall(t) {
 // ---------------------------------------------------------------------------
 // The page around the village
 // ---------------------------------------------------------------------------
+// Ties are broken by Harmony, then Power, then Wealth
+const tieKey = (s, o) => { const st = stats(s, o); return [s.ranked, st.harmony, st.power, st.wealth]; };
+const ahead = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
 function rankInfo(s) {
-  const all = G.crowd.map(b => b.s.ranked);
-  const better = all.filter(v => v > s.ranked).length;
-  const total = all.length + 1;
+  const me = tieKey(s, G.orders);
+  const better = G.crowd.filter(b => ahead(tieKey(b.s, b.orders), me)).length;
+  const total = G.crowd.length + 1;
   return { rank: better + 1, total, top: Math.max(1, Math.round((better + 1) / total * 100)) };
 }
 // Rank among villages that share your path
 const plural = t => /(ss|ch)$/.test(t) ? t + 'es' : /s$/.test(t) ? t : t + 's';
 function pathRank(s) {
   const id = identity(s); if (!id) return null;
-  const peers = G.crowd.filter(b => identity(b.s) === id).map(b => b.s.ranked), better = peers.filter(v => v > s.ranked).length;
+  const me = tieKey(s, G.orders), peers = G.crowd.filter(b => identity(b.s) === id), better = peers.filter(b => ahead(tieKey(b.s, b.orders), me)).length;
   return { id, rank: better + 1, total: peers.length + 1, top: Math.max(1, Math.round((better + 1) / (peers.length + 1) * 100)) };
 }
 function renownHtml(rn) {
@@ -2578,8 +2819,10 @@ function render() {
   $('grid').innerHTML = gridHtml();
   const pr = pathRank(s);
   const vt = villageTitle(s);
-  $('pathBtn').innerHTML = pr ? `${icon(TRACKS[pr.id].icon, 16)}<b>${esc(vt)}</b><span>top ${pr.top}% of ${esc(plural(pathTitle(pr.id)))}</span>` : `${icon('star', 16)}<span>No path yet</span>`;
-  $('pathBtn').onclick = () => openNote($('pathBtn'), pr ? `Known as ${/^[AEIOU]/.test(vt) ? 'an' : 'a'} ${vt}` : 'What your village is known for', `<span>Everything you do earns renown. Your strongest path counts double toward your score.</span>${renownHtml(s.renown)}`, true);
+  const lean = leaning(s);
+  $('pathBtn').innerHTML = pr ? `${icon(TRACKS[pr.id].icon, 16)}<b>${esc(vt)}</b><span>top ${pr.top}% of ${esc(plural(pathTitle(pr.id)))}</span>` : lean ? `${icon(TRACKS[lean].icon, 16)}<span>Leaning toward ${esc(pathName(lean))}</span>` : `${icon('star', 16)}<span>No path yet</span>`;
+  $('pathBtn').onclick = () => openNote($('pathBtn'), pr ? `Known as ${/^[AEIOU]/.test(vt) ? 'an' : 'a'} ${vt}` : 'What your village is known for', `<span>Everything you do earns renown. Your leading path counts most toward your score. Follow it, pass its three trials and build its great work to go Legendary.${s.day < TITLE_DAY ? ` Your village earns its title on day ${TITLE_DAY}.` : ''}</span>${trialsHtml(s)}${renownHtml(s.renown)}<button class="linkbtn plain" id="stylesBtn">Play styles</button>`, true);
+  $('pathBtn').addEventListener('click', () => { const b = $('stylesBtn'); if (b) b.onclick = () => { closeNote(); showPlayStyles(); }; });
 
   $('moods').innerHTML = moodList(st).map(([id, ic, label, word, f, why, num]) => {
     const pct = Math.round(Math.max(.08, Math.min(1, f)) * 100);
@@ -2595,10 +2838,12 @@ function render() {
     const d = f.day, seen = d <= horizon, known = d === day || d <= s.scoutedUntil;
     const ic = !seen ? 'fog' : f.kind === 'weather' ? WEATHER_ICON[SCRIPT[d].weather] : { market: 'scales', threat: 'swords', opportunity: 'star' }[f.kind];
     const lbl = d === day ? 'Today' : d === day + 1 ? 'Tmrw' : 'Day ' + d;
-    const text = !seen ? 'Too far off to tell. Scouting shows more days.' : T(known ? f.detail : f.text) + '.';
+    const conds = condsOn(d).map(k => CONDITIONS[k]);
+    const handTxt = d === day + 1 && s.scoutedUntil >= d ? ` Tomorrow's hand: ${[...dealHand(s, d)].map(id => focusShort(FOCUS_BY_ID[id])).join(', ')}, plus anything you unlock today.` : '';
+    const text = !seen ? 'Too far off to tell. Scouting shows more days.' : T(known ? f.detail : f.text) + '.' + (conds.length ? ' ' + conds.map(c => `${c.name}: ${c.text}`).join(' ') : '') + handTxt;
     const head = d === day ? 'Today' : d === day + 1 ? 'Tomorrow' : 'Day ' + d;
     return `<button id="alm-${d}" class="${d === day ? 'today' : ''}${seen ? '' : ' fog'}" aria-expanded="false" data-t="${esc(head + (seen ? ' · ' + (known ? 'certain' : f.cert) : ''))}" data-x="${esc(text)}" aria-label="${esc(head)}: ${esc(text)}" title="${esc(text)}">
-      <span class="d">${lbl}</span>${icon(ic, 22)}<span class="c${known ? ' sure' : ''}">${known ? 'sure' : seen ? '?' : ''}</span></button>`;
+      <span class="d">${lbl}</span>${icon(ic, 22)}<span class="c${known ? ' sure' : ''}">${known ? 'sure' : seen ? '?' : ''}</span>${seen && conds.length ? '<i class="cdot" aria-hidden="true"></i>' : ''}</button>`;
   }).join('');
   $('almanac').querySelectorAll('button').forEach(b => b.onclick = () => openNote(b, b.dataset.t, b.dataset.x));
 
@@ -2607,12 +2852,20 @@ function render() {
   if (G.choice !== lastChoice) { lastChoice = G.choice; retarget(); }
 
   $('headline').textContent = TH().headlines[day] || T(SCRIPT[day].headline);
+  const todayConds = s.day <= SEASON.days ? condsOn(day) : [], spot = spotlightOn(day);
+  $('conds').hidden = s.day > SEASON.days;
+  $('conds').innerHTML = todayConds.map(k => { const c = CONDITIONS[k]; return `<button class="cond" data-c="${k}" title="${esc(T(c.text))}">${icon(c.icon, 16)}${esc(T(c.name))}</button>`; }).join('') +
+    `<button class="cond spot" id="spotChip" title="This week's spotlight">${spot.map(t => icon(TRACKS[t].icon, 14)).join('')}Spotlight</button>`;
+  $('spotChip').onclick = () => openNote($('spotChip'), 'This week\'s spotlight', `Story cards that build ${spot.map(t => pathName(t)).join(', ').replace(/, ([^,]*)$/, ' or $1')} earn half again as much renown this week.`);
+  $('conds').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = CONDITIONS[b.dataset.c]; openNote(b, T(c.name), T(c.text) + (c.dial ? ' ' + T(c.dial) + '.' : '')); });
 
   // Standing orders: four three-notch levers
   $('dials').innerHTML = DIALS.map(d => `<div class="dial"><span class="nm">${icon(DIAL_ICON[d.id], 18)}${esc(dialName(d))}</span>
     <div class="lever" role="group" aria-label="${esc(dialName(d))}">${d.opts.map((o, i) => `<button id="dial-${d.id}-${i}" data-dial="${d.id}" data-i="${i}" aria-pressed="${G.orders[d.id] === i}">${o}</button>`).join('')}</div>
     <span class="arrows">${G.orders[d.id] === 1 ? '' : esc(T(d.arrows[G.orders[d.id]]))}</span></div>`).join('');
   $('dials').querySelectorAll('[data-dial]').forEach(b => b.onclick = () => { G.orders[b.dataset.dial] = +b.dataset.i; render(); });
+  const hints = s.day <= SEASON.days ? dialHints(day) : [];
+  $('dialHint').hidden = !hints.length; $('dialHint').textContent = hints.map(h => T(h)).join(' ');
 
   // Focus cards
   const opts = focusOptions(s, day, G.morning);
@@ -2623,7 +2876,9 @@ function render() {
   const tile = ({ f, ok }) => {
     const rib = f.kind === 'rare' ? '<span class="ribbon rare">Rare</span>' : f.special || f.kind === 'special' ? '<span class="ribbon">Today</span>' : f.kind === 'unlock' || f.upgrade ? '<span class="ribbon new">New</span>' : '';
     const die = f.kind === 'gamble' ? `<span class="die" title="A gamble">${icon('die', 16)}</span>` : '';
-    return `<button class="tile" id="focus-${f.id}" data-f="${f.id}" title="${esc(focusName(f))}: ${esc(T(f.arrows))}" aria-label="${esc(focusName(f))}" aria-pressed="${G.choice === f.id}" ${ok ? '' : 'aria-disabled="true"'}>${rib}${die}${icon(focusIcon(f), 26)}
+    const tg = tagFor(s, f.id);
+    const ftag = tg ? `<span class="ftag ${tg.cls}" title="${esc(tg.why)}">${tg.txt}</span>` : '';
+    return `<button class="tile" id="focus-${f.id}" data-f="${f.id}" title="${esc(focusName(f))}: ${esc(T(f.arrows))}" aria-label="${esc(focusName(f))}" aria-pressed="${G.choice === f.id}" ${ok ? '' : 'aria-disabled="true"'}>${rib}${ftag}${die}${icon(focusIcon(f), 26)}
       <span class="nm">${esc(focusShort(f))}</span><span class="pis">${pathIcons(f.rn, 12)}</span></button>`;
   };
   const affordable = builds.filter(b => b.ok).length;
@@ -2639,7 +2894,7 @@ function render() {
   const sel = G.choice && opts.find(o => o.f.id === G.choice);
   if (sel) {
     const f = sel.f, cost = f.cost ? ` Costs ${f.cost.materials} ${R.materials} and ${f.cost.gold} ${R.gold}.` : '';
-    $('detail').innerHTML = `<p class="arw">${esc(T(f.arrows))}${f.rn ? ` · builds ${Object.keys(f.rn).map(t => esc(pathName(t))).join(' and ')}` : ''}</p><p><span class="dn">${esc(focusName(f))}.</span> ${esc(T(f.story + cost))}</p>${f.odds ? `<p class="odds">The odds: ${esc(T(typeof f.odds === 'function' ? f.odds(s) : f.odds))}</p>` : ''}${sel.ok ? '' : `<p class="why">${esc(T(sel.why))}</p>`}`;
+    $('detail').innerHTML = `<p class="arw">${esc(T(f.arrows))}${f.rn ? ` · builds ${Object.keys(f.rn).map(t => esc(pathName(t))).join(' and ')}` : ''}</p><p><span class="dn">${esc(focusName(f))}.</span> ${esc(T(f.story + cost))}</p>${f.odds ? `<p class="odds">The odds: ${esc(T(typeof f.odds === 'function' ? f.odds(s) : f.odds))}</p>` : ''}${(() => { const tg = tagFor(s, f.id); return tg ? `<p class="odds">${esc(tg.why)}</p>` : ''; })()}${(() => { const sp = (f.kind === 'special' || f.special) && f.rn ? Object.keys(f.rn).filter(t => spotlightOn(day).includes(t)) : []; return sp.length ? `<p class="odds">This week's spotlight: +50% ${esc(sp.map(t => pathName(t)).join(' and '))} renown.</p>` : ''; })()}${sel.ok ? '' : `<p class="why">${esc(T(sel.why))}</p>`}`;
   } else $('detail').innerHTML = '<p class="placeholder">Tap a card to read it. Your standing orders run everything you don\'t focus on.</p>';
   $('endDay').disabled = !sel || !sel.ok || s.day > SEASON.days || s.day > todayLimit();
   $('endLabel').textContent = day === SEASON.days ? 'End the season' : 'End day ' + day;
@@ -2684,7 +2939,7 @@ function stack(parts, max, color) {
 function ledgerScore(st) {
   const s = G.s, ri = rankInfo(s), pr = pathRank(s);
   const term = (label, v, color, note) => `<div class="term"><span class="tl">${esc(label)}</span><span class="tv" style="color:${color}">${fmt(v)}</span>${note ? `<span class="tn">${note}</span>` : ''}</div>`;
-  const rows = renownSorted(s.renown), wt = ['×2', '×1', '×½', '×½', '×½', '×½'];
+  const rows = renownSorted(s.renown), wt = rows.map((_, i) => i === 0 ? '×1¾' : i === 1 ? '×1¼' : '×¼');
   const max = Math.max(20, rows[0][1]);
   return `<div class="equation">
       ${term('Livelihood', st.livelihood, 'var(--ink)', 'How well your people live')}<span class="op">+</span>
@@ -2694,14 +2949,14 @@ function ledgerScore(st) {
     <div class="breakdown">
       <div><h5>Livelihood <span class="hand">${fmt(st.livelihood)}</span></h5>
         <table class="ltable"><tbody>
-          <tr><th>${esc(T('Wealth'))} ${fmt(st.wealth)} × ${LIVE_W.wealth}</th><td>${fmt(Math.round(st.wealth * LIVE_W.wealth))}</td></tr>
+          <tr><th>√${esc(T('Wealth'))} ${fmt(st.wealth)} × ${LIVE_W.wealth}</th><td>${fmt(Math.round(Math.sqrt(st.wealth) * LIVE_W.wealth))}</td></tr>
           <tr><th>${esc(T('Harmony'))} ${fmt(Math.round(st.scoreH))} × ${LIVE_W.harmony}</th><td>${fmt(Math.round(st.scoreH * LIVE_W.harmony))}</td></tr>
           <tr><th>${esc(T('Power'))} ${fmt(Math.round(st.scoreP))} × ${LIVE_W.power}</th><td>${fmt(Math.round(st.scoreP * LIVE_W.power))}</td></tr>
         </tbody></table>
-        <p class="lnote">Added, not multiplied, so a weak spot only costs you its own share. Temporary boosts count half.</p></div>
+        <p class="lnote">Added, not multiplied, so a weak spot only costs you its own share. Wealth counts as its square root, so it can't snowball. Temporary boosts count half.</p></div>
       <div style="grid-column: span 2"><h5>Renown <span class="hand">${fmt(st.renown)}</span></h5>
         <table class="ltable renown"><tbody>${rows.map(([t, v], i) => `<tr><th>${icon(TRACKS[t].icon, 16)}${esc(pathName(t))} <small>${esc(pathTitle(t))}</small></th><td class="bar"><i style="width:${Math.round(v / max * 100)}%"></i></td><td>${v}</td><td class="dim">${wt[i]}</td></tr>`).join('')}</tbody></table>
-        <p class="lnote">Your strongest path counts double, the next one once, the rest half. Specialize, or spread out: both can win.</p></div>
+        <p class="lnote">Your leading path counts 1¾ times, the next 1¼ times, the rest a quarter.${st.milestones ? ` Milestones reached (50, 100 and 200 renown in a path) add <b>${st.milestones}</b>.` : ' Reaching 50, 100 and 200 renown in any path adds a milestone bonus.'} Your leading path fades 2% on a day you give it nothing.${st.legend ? ` Legendary bonus: <b>+${st.legend}</b>.` : ''}</p></div>
     </div>
     <p class="lnote">As of this morning. Ranked score <b class="hand">${fmt(s.ranked)}</b>, #${ri.rank} of ${ri.total} (top ${ri.top}%)${pr ? `; #${pr.rank} of ${pr.total} ${esc(plural(pathTitle(pr.id)))}` : ''}. Your ranked score can move at most −25% or +35% in a day.</p>`;
 }
@@ -2736,8 +2991,9 @@ function ledgerFocus(st, opts) {
 }
 function ledgerDials() {
   const rn = obj => Object.entries(obj || {}).map(([t, v]) => `${pathName(t)} +${v}`).join(', ');
-  const rows = DIALS.map(d => `<tr><th>${esc(dialName(d))}</th>${d.opts.map((o, i) => `<td class="dset${G.orders[d.id] === i ? ' on' : ''}"><b>${o}</b><span>${esc(T(d.hint[i]))}</span>${rn(DIAL_RENOWN[d.id][i]) ? `<span class="rn">Renown a day: ${esc(rn(DIAL_RENOWN[d.id][i]))}</span>` : ''}</td>`).join('')}</tr>`).join('');
-  return `<div class="tablewrap"><table class="ltable dials"><tbody>${rows}</tbody></table></div><p class="lnote">Circled in red: your current setting. Changes take effect when you end the day.</p>`;
+  const suits = (d, i) => (SYN[d][i] || []);
+  const rows = DIALS.map(d => `<tr><th>${esc(dialName(d))}</th>${d.opts.map((o, i) => `<td class="dset${G.orders[d.id] === i ? ' on' : ''}"><b>${o}</b><span>${esc(T(d.hint[i]))}</span>${suits(d.id, i).length ? `<span class="rn">Suits ${suits(d.id, i).map(t => `${icon(TRACKS[t].icon, 12)}${esc(pathName(t))}`).join(' and ')}</span>` : ''}</td>`).join('')}</tr>`).join('');
+  return `<div class="tablewrap"><table class="ltable dials"><tbody>${rows}</tbody></table></div><p class="lnote">Each setting off the middle suits two paths: while it's on, their cards pay 60% more and each earns +1 renown a day. Some days reward certain settings too: a garrison on raid days, shut gates in the fever, a feast on feast days and freezing nights, hard work in building season. Circled in red: your current setting. Changes take effect when you end the day.</p>`;
 }
 function ledgerHistory() {
   const H = Object.values(G.hist).sort((a, b) => a.day - b.day);
@@ -2812,13 +3068,16 @@ function showResults(day, picked, r) {
   const ri = rankInfo(s), myGain = (s.ranked - b.ranked) / Math.max(1, b.ranked);
   const ow = { work: ['easy work', 'steady work', 'hard work'], table: ['a lean table', 'a normal table', 'feasting'] };
   const ordersLine = `Everyone else kept to their orders: ${ow.work[G.morning.work]}, ${ow.table[G.morning.table]}, the ${T('gates')} ${['open', 'watched', 'shut'][G.morning.gates]} and ${['no guard', 'patrols out', 'the garrison on duty'][G.morning.guard]}.`;
-  const story = r.log.slice(1, 3).concat(ordersLine);
+  const story = r.log.slice(1, 3).concat(r.ordersLine || ordersLine);
   $('sheet').innerHTML = `
     <header class="mast"><h3 id="sheetTitle">${sea ? 'The Harbor Chronicle' : 'The Valley Chronicle'}</h3><p><span>${last ? 'Final edition' : 'Evening edition'} · day ${day} of ${SEASON.days}</span><span>${WEATHER_WORD[SCRIPT[day].weather]}</span></p></header>
     <p class="lead">${esc(T(r.log[0] || 'A quiet day.'))}</p>
     ${r.newTitle ? `<p class="echo newtitle"><b>${r.firstTitle ? 'A name for yourselves' : 'A new reputation'}</b>Travellers have started calling your ${esc(T('settlement'))} ${/^[AEIOU]/.test(titleOf(r.newTitle)) ? 'an' : 'a'} ${esc(titleOf(r.newTitle))}.</p>` : ''}
     <div class="story${story.join(' ').length > 260 ? ' cols' : ''}">${story.map(l => `<p>${esc(T(l))}</p>`).join('')}</div>
     ${r.echo.map(e => `<p class="echo"><b>Your past catches up</b>${esc(T(e))}</p>`).join('')}
+    ${(r.newMilestones || []).map(m => `<p class="echo"><b>Milestone</b>${esc(pathName(m.path))} reached ${m.at} renown: +${m.bonus} to your score for good.</p>`).join('')}
+    ${(r.newTrials || []).filter(t => topTwo(r.before && G.s ? s : s).includes(t.path) || t.path === leaning(s)).map(t => `<p class="echo"><b>Trial passed</b>${esc(pathName(t.path))}: ${esc(T(t.name))} (${trialsDone(s, t.path)} of 3).${trialsDone(s, t.path) >= 3 ? ` All three ${esc(pathName(t.path))} trials are done. ${s.day >= GREAT_WORK_OPEN ? 'Its great work is open, if it\'s your leading path.' : `Its great work opens on day ${GREAT_WORK_OPEN}, if it's still your leading path.`}` : ''}</p>`).join('')}
+    ${r.faded ? `<p class="echo"><b>Fading</b>Nobody did anything for your ${esc(pathName(r.faded.path))} reputation today, and people noticed: −${r.faded.n} renown.</p>` : ''}
     <div class="ccols">
       <div style="display:grid;gap:12px;align-content:start">
         <section class="box"><h4>Best move for your village</h4><div class="bm"><span class="grade ${gd.grade}" aria-label="${gd.grade}"></span><div><p><b>${esc(focusName(bf))}</b>. ${pctBest <= 1 ? 'Almost nobody' : pctBest + '% of villages'} chose it.</p><p class="you">${verdict}${gd.grade !== 'best' ? ` You picked ${esc(focusName(FOCUS_BY_ID[picked]))}.` : ''}</p></div></div></section>
@@ -2877,11 +3136,11 @@ function wireSummary() {
 const TOUR = [
   { title: 'Welcome, chief', text: 'You lead a small frontier village for a whole month, one day at a time. Each day you make one big choice. There\'s no single right way to play: build a fortress, a market hub, a haven for anyone in need, or something all your own.', start: true },
   { target: ['moods', 'res'], title: 'How your village is doing', text: 'The heart is Harmony, the shield is Power, the pouch is Wealth and the sack is Food. The fuller the icon, the better. Your score multiplies the first three, so one weak spot drags everything down. Tap an icon to see why.' },
-  { target: ['pathBtn'], title: 'Your path', text: 'Everything you do earns renown, and the valley starts calling your village by what it\'s known for. You\'re ranked against everyone, and against villages that took the same path. Tap it to see your renown.' },
+  { target: ['pathBtn'], title: 'Your path', text: 'Everything you do earns renown, and the valley starts calling your village by what it\'s known for. Follow a path, pass its three trials and build its great work to go Legendary. Tap it to see your trials, and Play styles for how each path plays.' },
   { target: ['almanac'], title: 'The almanac', text: 'What\'s coming this week. Tap a day to read it. "sure" means it will happen; a ? is only a rumor. Scouting fills in more days.' },
   { target: ['stage'], title: 'Your village', text: 'Tap anyone to hear what they have to say. Council members with a ! over their head have news for you today. Their hints and the almanac point to the best move.' },
-  { target: ['cards'], title: 'Pick one Focus', text: 'This is the day\'s big decision. Tap a card to read it. Cards with a red ribbon are only here today. Cards with a die are gambles, with the odds shown. The little icons after a name show which path it builds.' },
-  { target: ['orders'], title: 'Your standing orders', text: 'These four levers run everything you don\'t focus on: how hard people work, how well they eat, who gets through the gates, and how strong your guard is. Set them and leave them, or change them when things change.' },
+  { target: ['cards'], title: 'Pick one Focus', text: 'This is the day\'s big decision. Tap a card to read it. Everyday cards are dealt fresh each morning, and doing the same thing two days running pays less. Cards with a red ribbon are only here today; a die means a gamble. The little icons show which path a card builds.' },
+  { target: ['orders'], title: 'Your standing orders', text: 'These four levers run everything you don\'t focus on. Each setting off the middle suits two paths (the ledger shows which), and some days reward a change: watch for the hint above the levers.' },
   { target: ['endDay'], title: 'Seal the day', text: 'Night falls and the village acts it out. Then the Chronicle tells you what happened, how everyone else chose, and whether you found the best move. Try to fill your season with green squares.' },
   { target: ['ledgerBtn'], title: 'The ledger book', text: 'Every number behind the story lives in here, whenever you want it.', last: true },
 ];
@@ -2954,12 +3213,66 @@ const themesEl = document.querySelector('.themes');
 function placeThemes() { const phone = innerWidth < 900; if (phone && themesEl.parentElement !== $('panel')) $('panel').appendChild(themesEl); else if (!phone && themesEl.parentElement === $('panel')) document.querySelector('.tools').prepend(themesEl); }
 placeThemes();
 window.addEventListener('resize', () => { placeThemes(); fitCanvas(); closeNote(); if (tourAt >= 0) showTour(tourAt); });
+
+// Alpha 2: what changes a card's value today (fatigue and the valley's conditions)
+function tagFor(s, id) {
+  const fat = fatigueOf(s, id), m = focusMult(s, id, G.orders), pct = Math.round(m * 100);
+  if (m === 1) return null;
+  const why = [];
+  if (fat.mult < 1) why.push(fat.n >= 2 ? 'You did this on both of the last two days, so people are tired of it.' : 'You did this in the last two days, so people are a bit tired of it.');
+  if (fat.mult > 1) why.push('Nobody has done this for days, so it\'s welcome again.');
+  condsOn(s.day).forEach(k => { const c = CONDITIONS[k].cards[id]; if (c) why.push(k === 'caravan' && G.orders.gates === 2 ? 'The caravan is here, but your gates are shut.' : `${CONDITIONS[k].name} today.`); });
+  why.push(`Today it gives ${pct}% of the usual.`);
+  const txt = fat.mult < 1 && m < 1 ? `Tired ${pct}%` : m < 1 ? `${pct}%` : fat.mult > 1 && m < 1.2 ? 'Wanted' : `×${+(m).toFixed(2)}`;
+  return { txt, cls: m < 1 ? 'down' : 'up', why: why.join(' ') };
+}
+
+// Alpha 5: what today's events reward on the dials
+function dialHints(d) {
+  const W = SCRIPT[d] || {}, h = [];
+  if (W.event === 'raid') h.push('Raid today: a garrison adds 25 Power, and shut gates make them hit softer.');
+  if (W.event === 'sickness') h.push('Fever today: shut gates quarantine the village; open gates make it worse.');
+  if (hasCond(d, 'caravan') || W.event === 'caravan') h.push('Caravan in town: hard work brings half again in taxes, and shut gates turn it away.');
+  if (hasCond(d, 'build')) h.push('Building season: hard work goes 40% further.');
+  if (hasCond(d, 'hunting') || hasCond(d, 'feast')) h.push('A feast today costs no extra food and lifts spirits.');
+  if (W.cold) h.push('Freezing night: a feast warms everyone, and a garrison eats double.');
+  if (hasCond(d, 'lean') || W.weather === 'drought') h.push('Lean times: a lean table costs no Harmony today.');
+  if (hasCond(d, 'pilgrims')) h.push('Pilgrims on the road: open gates bring three extra settlers.');
+  return h.slice(0, 2);
+}
+// Trials and focus for the leading path, shown on the path note
+function trialsHtml(s) {
+  const p = leaning(s); if (!p) return '';
+  const done = (s.trials || {})[p] || [], f = Math.round(focusShare(s, p) * 100), legend = (s.greatWorks || []).includes(p);
+  const list = TRIALS[p].map(([id, name]) => `<li class="${done.includes(id) ? 'done' : ''}">${done.includes(id) ? '✓' : '○'} ${esc(T(name))}</li>`).join('');
+  const gw = legend ? `<b>Legendary.</b> The ${esc(gwName(p))} stands.` : done.length >= 3 ? (s.day >= GREAT_WORK_OPEN ? `The ${esc(gwName(p))} is open: look for it among today's cards.` : `The ${esc(gwName(p))} opens on day ${GREAT_WORK_OPEN}.`) : `Pass all three to open the ${esc(gwName(p))} from day ${GREAT_WORK_OPEN}.`;
+  return `<div class="trials"><p><b>${esc(pathName(p))} trials</b></p><p>Focus ${f}%${f < FOCUS_MIN * 100 ? ` (needs ${FOCUS_MIN * 100}%)` : ''}</p><ul>${list}</ul><p>${gw}</p></div>`;
+}
+// The Play styles page: how each path plays
+function showPlayStyles() {
+  closeNote(); hideBubble();
+  const dialWords = p => { const o = sigDials(p), out = []; DIALS.forEach(d => { if (o[d.id] !== 1) out.push(d.opts[o[d.id]] + ' ' + dialName(d).toLowerCase()); }); return out.join(', ') || 'any'; };
+  const cardsOf = p => FOCUS.filter(f => isDeck(f) && f.rn && p in f.rn).map(f => focusShort(f)).slice(0, 4).join(', ');
+  const card = p => `<section class="style"><h4>${icon(TRACKS[p].icon, 18)}${esc(pathTitle(p))} <small>${esc(pathName(p))}</small></h4>
+    <p><b>Dials:</b> ${esc(dialWords(p))}. <b>Cards:</b> ${esc(cardsOf(p))}.</p>
+    <p><b>Trials:</b> ${TRIALS[p].map(t => esc(T(t[1]))).join('; ')}.</p>
+    <p><b>Legendary:</b> the ${esc(gwName(p))}.</p></section>`;
+  $('sheet').innerHTML = `<header class="mast"><h3 id="sheetTitle">Play styles</h3><p><span>Eleven paths, one village</span><span>${BUILD}</span></p></header>
+    <p class="lead">Lead with one path. Set the dials that suit it, pass its three trials on the right days, and build its great work to go Legendary: a bonus of up to 60% of your renown, the more focused you are.</p>
+    <div class="styles">${TRACK_IDS.map(card).join('')}
+    <section class="style"><h4>${icon('star', 18)}The forecast reader <small>no path</small></h4><p>Read the almanac, set the dials for each day, pick the best card. A strong way to play, but no great work is open to you: those belong to villages that follow a path.</p></section></div>
+    <button class="morning" id="stylesClose">Back to the ${esc(T('settlement'))}</button>`;
+  $('overlay').hidden = false; $('overlay').scrollTop = 0;
+  $('stylesClose').onclick = () => { $('overlay').hidden = true; };
+}
+// Artistry's great work is the monument in the square, built with the Great work card
+const gwName = p => (GREAT_WORKS[p] || {}).name || 'Great Monument';
 // ---------------------------------------------------------------------------
 // Alpha test tools: feedback, tester reports, skipping days, and the tester guide
 // ---------------------------------------------------------------------------
-const BUILD = 'Alpha 1 · Oct 26, 2026';
+const BUILD = 'Alpha 5 · Oct 29, 2026';
 const FEEDBACK_URL = 'https://forms.gle/16WLoWj5qVTKXTLp9';
-const ALPHA_KEY = 'thirtydays-alpha-guide-seen';
+const ALPHA_KEY = 'thirtydays-alpha5-guide-seen';
 
 // A run code is the whole season in one line: seed, then day:focus:orders for every day played.
 // Paste it back to Claude to see exactly what a tester did.
@@ -2999,7 +3312,8 @@ function showFeedback() {
 function showAlphaGuide() {
   closeNote(); hideBubble();
   $('sheet').innerHTML = `<header class="mast"><h3 id="sheetTitle">Welcome, alpha tester</h3><p><span>${BUILD}</span><span>You're one of the first ten</span></p></header>
-    <p class="lead">Thanks for helping build this. A few things that work differently in the test:</p>
+    <p class="lead">Thanks for helping build this. New in Alpha 5: the dials now matter. Each setting off the middle suits two paths (see the ledger), and some days reward a change (watch the hint above the levers). Each path has three trials: pass them on the right days to open its great work and go Legendary, a bonus of up to 60%. The Play styles page (tap your path, top left) shows how each path plays. Your old month was reset for the new rules.</p>
+    <p class="lead">A few things that work differently in the test:</p>
     <ol class="steps">
       <li><b>Play at your own speed.</b> The real game gives you one day per real day. In the test, as soon as you end a day, the next one starts. Play one day or all thirty in a sitting.</li>
       <li><b>Skip ahead whenever you want.</b> Under the End day button are <b>Skip a day</b> and <b>Skip 5 days</b>. Your standing orders run those days without a Focus, so you can jump to the drought, the fever or the warband quickly.</li>
@@ -3034,7 +3348,7 @@ $('feedbackBtn').onclick = () => { if (!busy && tourAt < 0) showFeedback(); };
 // ---------------------------------------------------------------------------
 const PACING = /(^|#)daily\b/.test(location.hash) ? 'daily' : 'free';
 const FREE_SEASON_DAYS = 30;
-const SAVE_KEY = 'thirtydays-save-v2';
+const SAVE_KEY = 'thirtydays-save-v6';
 let replaying = false, dayOffset = 0;
 try { dayOffset = +localStorage.getItem('thirtydays-day-offset') || 0; } catch (e) { dayOffset = 0; }
 
@@ -3050,6 +3364,7 @@ const medianOf = () => { const v = G.crowd.map(b => b.s.ranked).sort((x, y) => x
 const cloneSt = s => JSON.parse(JSON.stringify(s));
 
 function freshState(seed) {
+  setDealSeed(seed);
   return { seed, s: newSettlement(DEFAULT_ORDERS), orders: { ...DEFAULT_ORDERS }, morning: { ...DEFAULT_ORDERS }, choice: null, crowd: makeCrowd(400, seed),
     picksByDay: {}, grades: {}, hist: {}, results: [], playerRng: mulberry32(seed * 7919 + 13), log: [], joinDay: 1 };
 }
@@ -3077,7 +3392,7 @@ function advanceDay(focusId, gradeInfo) {
 }
 
 function saveGame() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, pacing: PACING, season: G.seasonKey, seed: G.seed, days: G.days, joinDay: G.joinDay, theme, orders: G.orders, log: G.log })); } catch (e) { /* storage unavailable: the game still plays, it just won't resume */ }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 6, pacing: PACING, season: G.seasonKey, seed: G.seed, days: G.days, joinDay: G.joinDay, theme, orders: G.orders, log: G.log })); } catch (e) { /* storage unavailable: the game still plays, it just won't resume */ }
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
 
@@ -3085,7 +3400,7 @@ function startSeason(fresh) {
   const cal = calendarSeason();
   const want = PACING === 'daily' ? { key: cal.key, seed: cal.seed, days: cal.days } : { key: 'free', seed: 20261023, days: FREE_SEASON_DAYS };
   const save = fresh ? null : loadSave();
-  const usable = save && save.v === 2 && save.pacing === PACING && save.season === want.key;
+  const usable = save && save.v === 6 && save.pacing === PACING && save.season === want.key;
   const seed = usable ? save.seed : (fresh && PACING === 'free' && G ? G.seed + 1 : want.seed);
   setSeasonLength(usable ? save.days : want.days);
   G = freshState(seed); G.seasonKey = want.key; G.days = SEASON.days;
